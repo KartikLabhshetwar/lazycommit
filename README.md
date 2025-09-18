@@ -34,15 +34,33 @@ Upgrade:
 brew upgrade lazycommit
 ```
 
-2. Retrieve your API key from [Groq Console](https://console.groq.com/keys)
-
-   > Note: If you haven't already, you'll have to create an account and get your API key.
-
-3. Set the key so lazycommit can use it:
+2. Run the interactive configuration (recommended):
 
    ```sh
-   lazycommit config set GROQ_API_KEY=<your token>
+   lazycommit config
    ```
+
+   This will guide you through:
+
+   - Choosing your preferred AI provider (Groq or OpenRouter)
+   - Selecting your preferred model
+   - Setting up your API keys
+
+   **Manual configuration (alternative):**
+
+   Get an API key from one of the supported providers:
+
+   **Option A: Groq (Default)**
+
+   - Retrieve your API key from [Groq Console](https://console.groq.com/keys)
+   - Recommended: Set environment variable `export GROQ_API_KEY=<your token>`
+   - Alternative: Set in config `lazycommit config set GROQ_API_KEY=<your token>`
+
+   **Option B: OpenRouter**
+
+   - Retrieve your API key from [OpenRouter](https://openrouter.ai/keys)
+   - Set the environment variable: `export OPENROUTER_API_KEY=<your token>`
+   - Set the provider: `lazycommit config set provider=openrouter`
 
    This will create a `.lazycommit` file in your home directory.
 
@@ -80,6 +98,29 @@ lazycommit --all # or -a
 ```
 
 > 👉 **Tip:** Use the `lzc` alias if `lazycommit` is too long for you.
+
+#### Interactive configuration
+
+Run the interactive configuration wizard to choose your provider and model. The setup will dynamically fetch the latest available models from your chosen provider:
+
+```sh
+lazycommit config
+```
+
+#### Set provider and model via CLI
+
+You can quickly set the AI provider and model using CLI flags. These settings will be saved to your configuration:
+
+```sh
+# Switch to OpenRouter with a specific model
+lazycommit --provider openrouter --model openai/gpt-4o
+
+# Switch back to Groq
+lazycommit --provider groq --model llama-3.1-70b-versatile
+
+# Use short flags
+lazycommit -p openrouter -m anthropic/claude-3.5-sonnet
+```
 
 #### Generate multiple recommendations
 
