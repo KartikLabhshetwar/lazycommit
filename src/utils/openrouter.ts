@@ -112,11 +112,7 @@ const createChatCompletion = async (
   }
 };
 
-const sanitizeMessage = (message: string): string =>
-  message
-    .trim()
-    .replace(/[\n\r]/g, '')
-    .replace(/(\w)\.$/, '$1');
+const sanitizeMessage = (message: string): string => message.trim().replace(/(\w)\.$/, '$1');
 
 const deduplicateMessages = (array: string[]): string[] => Array.from(new Set(array));
 

@@ -189,7 +189,19 @@ export default async (
       message = selected as string;
     }
 
-    await execa('git', ['commit', '-m', message, ...rawArgv]);
+    // Split message into subject and body for proper git commit format
+    const lines = message.split('\n');
+    const subject = lines[0].trim();
+    const body = lines.slice(1).join('\n').trim();
+
+    const commitArgs = ['commit'];
+    commitArgs.push('-m', subject);
+    if (body) {
+      commitArgs.push('-m', body);
+    }
+    commitArgs.push(...rawArgv);
+
+    await execa('git', commitArgs);
 
     outro(`${green('✔')} Successfully committed!`);
   })().catch((error) => {
