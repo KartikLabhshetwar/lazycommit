@@ -1,13 +1,27 @@
-import Groq from 'groq-sdk';
 import { KnownError } from './error.js';
 import type { CommitType } from './config.js';
 import { generatePrompt } from './prompt.js';
 import { chunkDiff, splitDiffByFile, estimateTokenCount } from './git.js';
 
+interface OpenRouterMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+interface OpenRouterChoice {
+  message?: {
+    content?: string;
+  };
+}
+
+interface OpenRouterResponse {
+  choices: OpenRouterChoice[];
+}
+
 const createChatCompletion = async (
   apiKey: string,
   model: string,
-  messages: Array<{ role: string; content: string }>,
+  messages: OpenRouterMessage[],
   temperature: number,
   top_p: number,
   frequency_penalty: number,
@@ -15,122 +29,96 @@ const createChatCompletion = async (
   max_tokens: number,
   n: number,
   timeout: number,
-  proxy?: string
-) => {
-  const client = new Groq({
-    apiKey,
-    timeout,
-  });
+  _proxy?: string
+): Promise<OpenRouterResponse> => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
 
   try {
-    if (n > 1) {
-      const completions = await Promise.all(
-        Array.from({ length: n }, () =>
-          client.chat.completions.create({
-            model,
-            messages: messages as any,
-            temperature,
-            top_p,
-            frequency_penalty,
-            presence_penalty,
-            max_tokens,
-            n: 1,
-          })
-        )
-      );
-
-      return {
-        choices: completions.flatMap((completion) => completion.choices),
-      };
-    }
-
-    const completion = await client.chat.completions.create({
-      model,
-      messages: messages as any,
-      temperature,
-      top_p,
-      frequency_penalty,
-      presence_penalty,
-      max_tokens,
-      n: 1,
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://github.com/KartikLabhshetwar/lazycommit',
+        'X-Title': 'lazycommit',
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature,
+        top_p,
+        frequency_penalty,
+        presence_penalty,
+        max_tokens,
+        n: Math.min(n, 1), // OpenRouter typically handles n=1 best
+      }),
+      signal: controller.signal,
     });
 
-    return completion;
-  } catch (error: any) {
-    if (error instanceof Groq.APIError) {
-      let errorMessage = `Groq API Error: ${error.status} - ${error.name}`;
+    clearTimeout(timeoutId);
 
-      if (error.message) {
-        errorMessage += `\n\n${error.message}`;
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorMessage = `OpenRouter API Error: ${response.status} - ${response.statusText}`;
+
+      try {
+        const errorData = JSON.parse(errorText);
+        if (errorData.error?.message) {
+          errorMessage += `\n\n${errorData.error.message}`;
+        }
+      } catch {
+        if (errorText) {
+          errorMessage += `\n\n${errorText}`;
+        }
       }
 
-      if (error.status === 500) {
-        errorMessage += '\n\nCheck the API status: https://console.groq.com/status';
-      }
-
-      if (error.status === 413 || (error.message && error.message.includes('rate_limit_exceeded'))) {
+      if (response.status === 413) {
         errorMessage +=
           '\n\n💡 Tip: Your diff is too large. Try:\n' +
           '1. Commit files in smaller batches\n' +
           '2. Exclude large files with --exclude\n' +
-          '3. Use a different model with --model\n' +
+          '3. Use a different model\n' +
           '4. Check if you have build artifacts staged (dist/, .next/, etc.)';
+      }
+
+      if (response.status === 401) {
+        errorMessage += '\n\n💡 Check your OpenRouter API key: https://openrouter.ai/keys';
       }
 
       throw new KnownError(errorMessage);
     }
 
-    if (error.code === 'ENOTFOUND') {
-      throw new KnownError(
-        `Error connecting to ${error.hostname} (${error.syscall}). Are you connected to the internet?`
-      );
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    clearTimeout(timeoutId);
+
+    if (error instanceof KnownError) {
+      throw error;
+    }
+
+    if (error instanceof Error) {
+      if (error.name === 'AbortError') {
+        throw new KnownError(`Request timed out after ${timeout}ms`);
+      }
+
+      if (error.message.includes('fetch')) {
+        throw new KnownError(`Error connecting to OpenRouter API. Are you connected to the internet?`);
+      }
     }
 
     throw error;
   }
 };
 
-const sanitizeMessage = (message: string) =>
+const sanitizeMessage = (message: string): string =>
   message
     .trim()
     .replace(/[\n\r]/g, '')
     .replace(/(\w)\.$/, '$1');
 
-const deduplicateMessages = (array: string[]) => Array.from(new Set(array));
-
-const conventionalPrefixes = [
-  'feat:',
-  'fix:',
-  'docs:',
-  'style:',
-  'refactor:',
-  'perf:',
-  'test:',
-  'build:',
-  'ci:',
-  'chore:',
-  'revert:',
-];
-
-const deriveMessageFromReasoning = (text: string, maxLength: number): string | null => {
-  const cleaned = text.replace(/\s+/g, ' ').trim();
-  // Try to find a conventional-style line inside reasoning
-  const match = cleaned.match(/\b(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)\b\s*:?\s+[^.\n]+/i);
-  let candidate = match ? match[0] : cleaned.split(/[.!?]/)[0];
-  // Ensure prefix formatting: if starts with a known type w/o colon, add colon
-  const lower = candidate.toLowerCase();
-  for (const prefix of conventionalPrefixes) {
-    const p = prefix.slice(0, -1); // without colon
-    if (lower.startsWith(p + ' ') && !lower.startsWith(prefix)) {
-      candidate = p + ': ' + candidate.slice(p.length + 1);
-      break;
-    }
-  }
-  candidate = sanitizeMessage(candidate);
-  if (!candidate) return null;
-  if (candidate.length > maxLength) candidate = candidate.slice(0, maxLength);
-  return candidate;
-};
+const deduplicateMessages = (array: string[]): string[] => Array.from(new Set(array));
 
 export const generateCommitMessage = async (
   apiKey: string,
@@ -142,7 +130,7 @@ export const generateCommitMessage = async (
   type: CommitType,
   timeout: number,
   proxy?: string
-) => {
+): Promise<string[]> => {
   try {
     const completion = await createChatCompletion(
       apiKey,
@@ -169,36 +157,18 @@ export const generateCommitMessage = async (
 
     const rawMessages = completion.choices.map((choice) => choice.message?.content || '');
 
-    const messages = rawMessages.map((text) => sanitizeMessage(text as string)).filter(Boolean);
+    const messages = rawMessages.map((text) => sanitizeMessage(text)).filter(Boolean);
 
     if (messages.length > 0) return deduplicateMessages(messages);
 
-    // Fallback: some Groq models return reasoning with an empty content
-    const reasoningCandidates = (completion.choices as any[])
-      .map((c) => (c as any).message?.reasoning || '')
-      .filter(Boolean) as string[];
-
-    console.log(`Groq reasoning candidates:`, reasoningCandidates);
-
-    for (const reason of reasoningCandidates) {
-      const derived = deriveMessageFromReasoning(reason, maxLength);
-      if (derived) {
-        console.log(`Groq derived message from reasoning:`, derived);
-        return [derived];
-      }
-    }
-
-    console.log(`Groq: No messages generated, returning empty array`);
+    console.log(`OpenRouter: No messages generated, returning empty array`);
     return [];
   } catch (error) {
-    const errorAsAny = error as any;
-    if (errorAsAny.code === 'ENOTFOUND') {
-      throw new KnownError(
-        `Error connecting to ${errorAsAny.hostname} (${errorAsAny.syscall}). Are you connected to the internet?`
-      );
+    if (error instanceof Error && error.message.includes('fetch')) {
+      throw new KnownError(`Error connecting to OpenRouter API. Are you connected to the internet?`);
     }
 
-    throw errorAsAny;
+    throw error;
   }
 };
 
@@ -213,7 +183,7 @@ export const generateCommitMessageFromChunks = async (
   timeout: number,
   proxy?: string,
   chunkSize: number = 6000
-) => {
+): Promise<string[]> => {
   // Strategy: split by file first to avoid crossing file boundaries
   const fileDiffs = splitDiffByFile(diff);
   const perFileChunks = fileDiffs.flatMap((fd) => chunkDiff(fd, chunkSize));
@@ -264,14 +234,6 @@ export const generateCommitMessageFromChunks = async (
       const texts = (messages.choices || []).map((c) => c.message?.content).filter(Boolean) as string[];
       if (texts.length > 0) {
         chunkMessages.push(sanitizeMessage(texts[0]));
-      } else {
-        const reasons = (messages.choices as any[])
-          .map((c: any) => c.message?.reasoning || '')
-          .filter(Boolean) as string[];
-        if (reasons.length > 0) {
-          const derived = deriveMessageFromReasoning(reasons[0], maxLength);
-          if (derived) chunkMessages.push(derived);
-        }
       }
     } catch (error) {
       console.warn(`Failed to process chunk ${i + 1}:`, error instanceof Error ? error.message : 'Unknown error');
@@ -312,7 +274,9 @@ export const generateCommitMessageFromChunks = async (
       );
       const texts = (completion.choices || []).map((c) => c.message?.content).filter(Boolean) as string[];
       if (texts.length > 0) return [sanitizeMessage(texts[0])];
-    } catch {}
+    } catch {
+      // Ignore fallback errors
+    }
 
     throw new KnownError('Failed to generate commit messages for any chunks');
   }
@@ -359,7 +323,7 @@ export const generateCommitMessageFromSummary = async (
   type: CommitType,
   timeout: number,
   proxy?: string
-) => {
+): Promise<string[]> => {
   const prompt = `This is a compact summary of staged changes. Generate a single, concise commit message within ${maxLength} characters that reflects the overall intent.\n\n${summary}`;
   const completion = await createChatCompletion(
     apiKey,
@@ -380,69 +344,128 @@ export const generateCommitMessageFromSummary = async (
 
   const messages = (completion.choices || [])
     .map((c) => c.message?.content || '')
-    .map((t) => sanitizeMessage(t as string))
+    .map((t) => sanitizeMessage(t))
     .filter(Boolean);
 
   if (messages.length > 0) return deduplicateMessages(messages);
 
-  const reasons = (completion.choices as any[]).map((c: any) => c.message?.reasoning || '').filter(Boolean) as string[];
-  for (const r of reasons) {
-    const derived = deriveMessageFromReasoning(r, maxLength);
-    if (derived) return [derived];
-  }
-
   return [];
 };
 
-interface GroqModel {
+interface OpenRouterModel {
   id: string;
-  object: string;
-  created: number;
-  owned_by: string;
+  name: string;
+  description?: string;
+  context_length?: number;
+  pricing?: {
+    prompt: string;
+    completion: string;
+  };
+  // Additional fields that might be available from the API
+  top_provider?: {
+    max_completion_tokens?: number;
+    is_moderated?: boolean;
+  };
+  per_request_limits?: any;
+  // Add other potential popularity indicators
+  created?: number; // timestamp when model was added
+  // Note: OpenRouter doesn't seem to provide explicit popularity metrics
+  // in their public API, so we'll rely on intelligent defaults
 }
+
+const getPricingHint = (pricing?: { prompt: string; completion: string }): string => {
+  if (!pricing) return 'Paid';
+
+  const promptCost = parseFloat(pricing.prompt);
+  const completionCost = parseFloat(pricing.completion);
+
+  // Consider it free if both costs are 0
+  if (promptCost === 0 && completionCost === 0) {
+    return 'Free';
+  }
+
+  return 'Paid';
+};
 
 export const fetchAvailableModels = async (
   apiKey: string
 ): Promise<Array<{ value: string; label: string; hint: string }>> => {
+  // Validate API key format
+  if (!apiKey) {
+    throw new KnownError(
+      `OpenRouter API key is missing. Set the OPENROUTER_API_KEY environment variable. Get a key from: https://openrouter.ai/keys`
+    );
+  }
+
+  if (!apiKey.startsWith('sk-or-')) {
+    throw new KnownError(
+      `Invalid OpenRouter API key format. Keys should start with 'sk-or-'. Get a key from: https://openrouter.ai/keys`
+    );
+  }
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
   try {
-    const response = await fetch('https://api.groq.com/openai/v1/models', {
+    console.log(`Fetching OpenRouter models with API key: ${apiKey.substring(0, 10)}...`);
+
+    const response = await fetch('https://openrouter.ai/api/v1/models', {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://github.com/KartikLabhshetwar/lazycommit',
+        'X-Title': 'lazycommit',
       },
       signal: controller.signal,
     });
 
+    console.log(`OpenRouter API response status: ${response.status}`);
+
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch models: ${response.status}`);
+      const errorText = await response.text();
+      console.error(`OpenRouter API Error ${response.status}:`, errorText);
+
+      // Provide helpful error messages for common issues
+      if (response.status === 401) {
+        throw new KnownError(
+          `OpenRouter API key is invalid or missing. Please check your OPENROUTER_API_KEY environment variable. Get a key from: https://openrouter.ai/keys`
+        );
+      } else if (response.status === 403) {
+        throw new KnownError(`OpenRouter API access forbidden. Your API key may not have permission to access models.`);
+      } else if (response.status === 429) {
+        throw new KnownError(`OpenRouter API rate limit exceeded. Please try again later.`);
+      } else {
+        throw new KnownError(
+          `Failed to fetch OpenRouter models: ${response.status} - ${response.statusText}. Check your internet connection and API key.`
+        );
+      }
     }
 
     const data = await response.json();
-    const models: GroqModel[] = data.data || [];
+    const models: OpenRouterModel[] = data.data || [];
+
+    console.log(`Successfully fetched ${models.length} models from OpenRouter`);
 
     const sortedModels = models
-      .filter((model) => model.id)
+      .filter((model) => model.id && model.name)
       .sort((a, b) => {
-        // Primary sort: alphabetical by model ID (ascending)
-        return a.id.localeCompare(b.id);
+        // Primary sort: alphabetical by model name (ascending)
+        return a.name.localeCompare(b.name);
       });
     // No limit - show all models, sorted alphabetically
 
     return sortedModels.map((model) => ({
       value: model.id,
-      label: `${model.id} (Paid)`,
-      hint: 'Paid',
+      label: `${model.id} (${getPricingHint(model.pricing)})`,
+      hint: getPricingHint(model.pricing),
     }));
   } catch (error) {
     clearTimeout(timeoutId);
     throw new KnownError(
-      `Failed to fetch Groq models: ${
+      `Failed to fetch OpenRouter models: ${
         error instanceof Error ? error.message : 'Unknown error'
       }. Please check your internet connection and API key.`
     );

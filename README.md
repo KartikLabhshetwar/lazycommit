@@ -4,7 +4,7 @@
 <img width="2816" height="1536" alt="lazycommit" src="https://github.com/user-attachments/assets/ee0419ef-2461-4b45-8509-973f3bb0f55c" />
 
   </div>
-	<p>A CLI that writes your git commit messages for you with AI using Groq. Never write a commit message again.</p>
+	<p>A CLI that writes your git commit messages for you with AI. Supports Groq and OpenRouter. Never write a commit message again.</p>
 	<a href="https://www.npmjs.com/package/lazycommitz"><img src="https://img.shields.io/npm/v/lazycommitt" alt="Current version"></a>
 	<a href="https://github.com/KartikLabhshetwar/lazycommit"><img src="https://img.shields.io/github/stars/KartikLabhshetwar/lazycommit" alt="GitHub stars"></a>
 	<a href="https://github.com/KartikLabhshetwar/lazycommit/blob/main/LICENSE"><img src="https://img.shields.io/npm/l/lazycommitt" alt="License"></a>
@@ -197,11 +197,34 @@ lazycommit config set GROQ_API_KEY=<your-api-key> generate=3 locale=en
 
 ### Options
 
-#### GROQ_API_KEY
+#### Environment Variables (Recommended)
 
-Required
+**GROQ_API_KEY**: Required when using Groq provider (default). Recommended approach for security. Get your key from [Groq Console](https://console.groq.com/keys).
 
-The Groq API key. You can retrieve it from [Groq Console](https://console.groq.com/keys).
+**OPENROUTER_API_KEY**: Required when using OpenRouter provider. Environment variable only (not stored in config file for security). Get your key from [OpenRouter](https://openrouter.ai/keys).
+
+#### GROQ_API_KEY (Legacy Config)
+
+For backward compatibility, you can still set the Groq API key in the config file, but environment variables are recommended:
+
+```sh
+lazycommit config set GROQ_API_KEY=<your-key>
+```
+
+Note: Environment variable `GROQ_API_KEY` takes precedence over config file setting.
+
+#### provider
+
+Default: `groq`
+
+The AI provider to use. Currently supports:
+
+- `groq` - Uses Groq's fast inference API
+- `openrouter` - Uses OpenRouter's multi-model API
+
+```sh
+lazycommit config set provider=openrouter
+```
 
 #### locale
 
@@ -229,11 +252,27 @@ lazycommit config set proxy=
 
 #### model
 
-Default: `openai/gpt-oss-120b`
+The AI model to use. When using the interactive setup (`lazycommit config`), models are dynamically fetched from your provider's API, giving you access to the latest available models with real-time information.
+
+For manual configuration, defaults depend on the provider:
+
+- Groq: `openai/gpt-oss-120b`
+- OpenRouter: `openai/gpt-4o-mini`
+
+```sh
+# Set a specific model
+lazycommit config set model=llama-3.1-70b-versatile
+
+# OpenRouter examples
+lazycommit config set model=anthropic/claude-3.5-sonnet
+lazycommit config set model=openai/gpt-4o
+```
+
+**Note**: The interactive setup provides richer model information including context length, pricing, and filtering by cost directly from the provider APIs.
 
 #### timeout
 
-The timeout for network requests to the Groq API in milliseconds.
+The timeout for network requests to the AI provider in milliseconds.
 
 Default: `10000` (10 seconds)
 
@@ -281,9 +320,12 @@ lazycommit config set chunk-size 4000
 
 ## How it works
 
-This CLI tool runs `git diff` to grab all your latest code changes, sends them to Groq's AI models, then returns the AI generated commit message.
+This CLI tool runs `git diff` to grab all your latest code changes, sends them to your chosen AI provider (Groq or OpenRouter), then returns the AI generated commit message.
 
-The tool uses Groq's fast inference API to provide quick and accurate commit message suggestions based on your code changes.
+The tool supports multiple AI providers:
+
+- **Groq**: Fast inference with open-source models
+- **OpenRouter**: Access to multiple providers and models including GPT-4, Claude, and more
 
 ### Large diff handling
 
@@ -303,16 +345,19 @@ This ensures you can commit large changes (like new features, refactoring, or in
 If you get a 413 error, your diff is too large for the API. Try these solutions:
 
 1. **Exclude build artifacts**:
+
    ```sh
    lazycommit --exclude "dist/**" --exclude "node_modules/**" --exclude ".next/**"
    ```
 
 2. **Reduce chunk size**:
+
    ```sh
    lazycommit config set chunk-size 4000
    ```
 
 3. **Use a different model**:
+
    ```sh
    lazycommit config set model "llama-3.1-70b-versatile"
    ```
@@ -339,9 +384,9 @@ If you get a 413 error, your diff is too large for the API. Try these solutions:
 ## Why Groq?
 
 - **Fast**: Groq provides ultra-fast inference speeds
--  **Cost-effective**: More affordable than traditional AI APIs
--  **Open source models**: Uses leading open-source language models
--  **Reliable**: High uptime and consistent performance
+- **Cost-effective**: More affordable than traditional AI APIs
+- **Open source models**: Uses leading open-source language models
+- **Reliable**: High uptime and consistent performance
 
 ## Maintainers
 

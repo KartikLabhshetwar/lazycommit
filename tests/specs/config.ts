@@ -106,6 +106,27 @@ export default testSuite(({ describe }) => {
 			});
 		});
 
+		await describe('provider config', ({ test }) => {
+			test('set provider to openrouter', async () => {
+				const provider = 'provider=openrouter';
+				await lazycommit(['config', 'set', provider]);
+
+				const configFile = await fs.readFile(configPath, 'utf8');
+				expect(configFile).toMatch(provider);
+
+				const get = await lazycommit(['config', 'get', 'provider']);
+				expect(get.stdout).toBe(provider);
+			});
+
+			test('OPENROUTER_API_KEY cannot be set in config', async () => {
+				const { stderr } = await lazycommit(['config', 'set', 'OPENROUTER_API_KEY=sk-or-test123'], {
+					reject: false,
+				});
+
+				expect(stderr).toMatch('Invalid config property: OPENROUTER_API_KEY');
+			});
+		});
+
 		await test('set config file', async () => {
 			await lazycommit(['config', 'set', groqToken]);
 
