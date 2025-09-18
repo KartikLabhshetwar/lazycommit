@@ -2,7 +2,7 @@ import { execa } from 'execa';
 import { black, dim, green, red, bgCyan } from 'kolorist';
 import { intro, outro, spinner, select, confirm, isCancel, log } from '@clack/prompts';
 import { assertGitRepo, getStagedDiff, getDetectedMessage, getDiffSummary, buildCompactSummary } from '../utils/git.js';
-import { getConfig, setConfigs } from '../utils/config.js';
+import { getConfig, setConfigs, getModelForProvider } from '../utils/config.js';
 import { generateCommitMessageFromChunks, generateCommitMessageFromSummary } from '../utils/ai-provider.js';
 import { KnownError, handleCliError } from '../utils/error.js';
 
@@ -113,7 +113,8 @@ export default async (
     }
 
     const s = spinner();
-    s.start('The AI is analyzing your changes');
+    const modelName = getModelForProvider(config);
+    s.start(`${modelName} is analyzing your changes`);
     let messages: string[];
 
     try {

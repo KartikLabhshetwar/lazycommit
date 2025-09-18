@@ -10,10 +10,13 @@ async function selectModelWithFiltering(
   provider: 'groq' | 'openrouter',
   initialValue?: string
 ) {
-  // Step 1: Choose filter mode
-  const filterResult = await select({
-    message: `Choose model filter for ${provider === 'groq' ? 'Groq' : 'OpenRouter'}:`,
-    options: [
+  const hasMixedPricing = allModels.some((m) => m.hint === 'Free') && allModels.some((m) => m.hint === 'Paid');
+
+  let filteredModels: Array<{ value: string; label: string; hint: string }>;
+
+  if (hasMixedPricing) {
+    // Step 1: Choose filter mode when there are mixed pricing tiers
+    const filterOptions = [
       {
         value: 'all',
         label: `🔄 Show All Models (${allModels.length})`,
@@ -29,34 +32,40 @@ async function selectModelWithFiltering(
         label: `💰 Show Paid Models (${allModels.filter((m) => m.hint === 'Paid').length})`,
         hint: 'Only show paid models',
       },
-    ],
-    initialValue: 'all',
-  });
+    ];
 
-  if (isCancel(filterResult)) {
-    return filterResult;
-  }
+    const filterResult = await select({
+      message: `Choose model filter for ${provider === 'groq' ? 'Groq' : 'OpenRouter'}:`,
+      options: filterOptions,
+      initialValue: 'all',
+    });
 
-  // Step 2: Filter models based on selection
-  let filteredModels: Array<{ value: string; label: string; hint: string }>;
+    if (isCancel(filterResult)) {
+      return filterResult;
+    }
 
-  switch (filterResult) {
-    case 'free':
-      filteredModels = allModels.filter((model) => model.hint === 'Free');
-      if (filteredModels.length === 0) {
-        log.warn('No free models available, showing all models instead');
+    // Step 2: Filter models based on selection
+    switch (filterResult) {
+      case 'free':
+        filteredModels = allModels.filter((model) => model.hint === 'Free');
+        if (filteredModels.length === 0) {
+          log.warn('No free models available, showing all models instead');
+          filteredModels = allModels;
+        }
+        break;
+      case 'paid':
+        filteredModels = allModels.filter((model) => model.hint === 'Paid');
+        if (filteredModels.length === 0) {
+          log.warn('No paid models available, showing all models instead');
+          filteredModels = allModels;
+        }
+        break;
+      default:
         filteredModels = allModels;
-      }
-      break;
-    case 'paid':
-      filteredModels = allModels.filter((model) => model.hint === 'Paid');
-      if (filteredModels.length === 0) {
-        log.warn('No paid models available, showing all models instead');
-        filteredModels = allModels;
-      }
-      break;
-    default:
-      filteredModels = allModels;
+    }
+  } else {
+    // Skip filter selection when all models are the same price class
+    filteredModels = allModels;
   }
 
   // Step 3: Select the actual model from filtered list

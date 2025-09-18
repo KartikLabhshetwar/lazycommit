@@ -432,8 +432,8 @@ export const fetchAvailableModels = async (
 
     return sortedModels.map((model) => ({
       value: model.id,
-      label: `${model.id} (Paid)`,
-      hint: 'Paid',
+      label: model.id,
+      hint: 'Paid', // Conservative default since we can't determine pricing
     }));
   } catch (error) {
     clearTimeout(timeoutId);
