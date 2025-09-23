@@ -5,6 +5,7 @@ import { getStagedDiff, buildCompactSummary } from '../utils/git.js';
 import { getConfig } from '../utils/config.js';
 import { generateCommitMessageFromSummary } from '../utils/ai.js';
 import { KnownError, handleCliError } from '../utils/error.js';
+import { getHierarchicalCommitContext, formatCommitContext } from '../utils/commit-context.js';
 
 const [messageFilePath, commitSource] = process.argv.slice(2);
 
@@ -43,11 +44,19 @@ export default () =>
 		s.start('The AI is analyzing your changes');
 		let messages: string[];
 		try {
+			// Get commit context for better AI generation
+			const commitContext = await getHierarchicalCommitContext(10);
+			const contextString = formatCommitContext(commitContext);
+
 			const compact = await buildCompactSummary();
 			if (compact) {
+				// Include context if available
+				const enhancedPrompt = contextString
+					? `${compact}\n\n${contextString}`
+					: compact;
 				messages = await generateCommitMessageFromSummary(
 					config,
-					compact,
+					enhancedPrompt,
 					config.generate,
 					config['max-length'],
 					config.type
