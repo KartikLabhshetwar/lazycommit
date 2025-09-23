@@ -24,22 +24,3 @@ dist
 
 # Eslint cache
 .eslintcache
-
-dev-debug.log
-node_modules/
-
-# Environment variables
-# Editor directories and files
-.idea
-.vscode
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-# OS specific
-
-.claude/
-
-# Task files
-.taskmaster/
