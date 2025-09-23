@@ -4,7 +4,7 @@
 <img width="2816" height="1536" alt="lazycommit" src="https://github.com/user-attachments/assets/ee0419ef-2461-4b45-8509-973f3bb0f55c" />
 
   </div>
-	<p>A CLI that writes your git commit messages for you with AI using Groq. Never write a commit message again.</p>
+	<p>A CLI that writes your git commit messages for you with AI. Never write a commit message again.</p>
 	<a href="https://www.npmjs.com/package/lazycommitz"><img src="https://img.shields.io/npm/v/lazycommitt" alt="Current version"></a>
 	<a href="https://github.com/KartikLabhshetwar/lazycommit"><img src="https://img.shields.io/github/stars/KartikLabhshetwar/lazycommit" alt="GitHub stars"></a>
 	<a href="https://github.com/KartikLabhshetwar/lazycommit/blob/main/LICENSE"><img src="https://img.shields.io/npm/l/lazycommitt" alt="License"></a>
@@ -34,15 +34,29 @@ Upgrade:
 brew upgrade lazycommit
 ```
 
-2. Retrieve your API key from [Groq Console](https://console.groq.com/keys)
+2. Choose your AI provider and get an API key:
 
-   > Note: If you haven't already, you'll have to create an account and get your API key.
+   **Option A: Groq (Default)** - Fast inference with open models
+   - Get your API key from [Groq Console](https://console.groq.com/keys)
+   - Set the key: `lazycommit config set GROQ_API_KEY=<your token>`
 
-3. Set the key so lazycommit can use it:
+   **Option B: OpenAI** - Use GPT models
+   - Get your API key from [OpenAI Platform](https://platform.openai.com/api-keys)
+   - Configure lazycommit:
+     ```sh
+     lazycommit config set provider=openai
+     lazycommit config set OPENAI_API_KEY=<your token>
+     lazycommit config set model=gpt-4o-mini  # or gpt-4o, gpt-4-turbo
+     ```
 
-   ```sh
-   lazycommit config set GROQ_API_KEY=<your token>
-   ```
+   **Option C: Anthropic** - Use Claude models
+   - Get your API key from [Anthropic Console](https://console.anthropic.com/settings/keys)
+   - Configure lazycommit:
+     ```sh
+     lazycommit config set provider=anthropic
+     lazycommit config set ANTHROPIC_API_KEY=<your token>
+     lazycommit config set model=claude-3-5-sonnet-20241022  # or claude-3-5-haiku-20241022, claude-3-opus-20240229
+     ```
 
    This will create a `.lazycommit` file in your home directory.
 
@@ -216,11 +230,41 @@ lazycommit config set GROQ_API_KEY=<your-api-key> generate=3 locale=en
 
 ### Options
 
+#### provider
+
+Default: `groq`
+
+The AI provider to use. Options: `groq`, `openai`, `anthropic`
+
+```sh
+lazycommit config set provider=openai
+```
+
 #### GROQ_API_KEY
 
-Required
+Required when using Groq provider
 
 The Groq API key. You can retrieve it from [Groq Console](https://console.groq.com/keys).
+
+#### OPENAI_API_KEY
+
+Required when using OpenAI provider
+
+The OpenAI API key. You can retrieve it from [OpenAI Platform](https://platform.openai.com/api-keys).
+
+```sh
+lazycommit config set OPENAI_API_KEY=sk-...
+```
+
+#### ANTHROPIC_API_KEY
+
+Required when using Anthropic provider
+
+The Anthropic API key. You can retrieve it from [Anthropic Console](https://console.anthropic.com/settings/keys).
+
+```sh
+lazycommit config set ANTHROPIC_API_KEY=sk-ant-...
+```
 
 #### locale
 
@@ -248,16 +292,27 @@ lazycommit config set proxy=
 
 #### model
 
-Default: `openai/gpt-oss-20b`
+Default: `openai/gpt-oss-20b` for Groq, `gpt-4o-mini` for OpenAI, `claude-3-5-sonnet-20241022` for Anthropic
 
-The Groq model to use for generating commit messages. Available models include:
+The AI model to use for generating commit messages.
+
+**Groq models:**
 - `openai/gpt-oss-20b` (default) - Fast, efficient for conventional commits
 
-For conventional commit generation, the 8B instant model provides the best balance of speed and quality.
+**OpenAI models:**
+- `gpt-4o-mini` (default) - Fast and cost-effective
+- `gpt-4o` - Most capable model
+- `gpt-4-turbo` - Turbo version of GPT-4
+- `gpt-3.5-turbo` - Legacy model, good balance of speed and quality
+
+**Anthropic models:**
+- `claude-3-5-sonnet-20241022` (default) - Best balance of speed and quality
+- `claude-3-5-haiku-20241022` - Fastest, most cost-effective
+- `claude-3-opus-20240229` - Most capable model for complex tasks
 
 #### timeout
 
-The timeout for network requests to the Groq API in milliseconds.
+The timeout for network requests to the AI API in milliseconds.
 
 Default: `10000` (10 seconds)
 
@@ -294,9 +349,12 @@ lazycommit config set type=
 
 ## How it works
 
-This CLI tool runs `git diff` to grab all your latest code changes, sends them to Groq's AI models, then returns the AI generated commit message.
+This CLI tool runs `git diff` to grab all your latest code changes, sends them to your selected AI provider (Groq, OpenAI, or Anthropic), then returns the AI generated commit message.
 
-The tool uses Groq's fast inference API to provide quick and accurate commit message suggestions based on your code changes.
+The tool supports multiple AI providers:
+- **Groq**: Fast inference API with open models for quick commit message generation
+- **OpenAI**: Access to GPT models for advanced language understanding
+- **Anthropic**: Claude models with excellent context understanding and nuanced responses
 
 ### Large diff handling
 
@@ -348,9 +406,12 @@ If you get a 413 error, your diff is too large for the API. Try these solutions:
 - Lower generate count: `lazycommit config set generate=1` (default)
 - Reduce timeout: `lazycommit config set timeout=5000` for faster failures
 
-## Why Groq?
+## Why Multiple Providers?
 
-- **Fast**: Groq provides ultra-fast inference speeds, especially with the 8B instant model
+- **Flexibility**: Choose between Groq's fast inference, OpenAI's advanced GPT models, or Anthropic's Claude models
+- **Cost Control**: Select the provider that fits your budget
+- **Availability**: Switch providers if one experiences downtime
+- **Quality**: Different models excel at different types of commits
 - **Cost-effective**: More affordable than traditional AI APIs
 - **Open source models**: Uses leading open-source language models
 - **Reliable**: High uptime and consistent performance

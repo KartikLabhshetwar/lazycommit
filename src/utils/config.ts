@@ -20,13 +20,38 @@ const parseAssert = (name: string, condition: any, message: string) => {
 };
 
 const configParsers = {
+	provider(provider?: string) {
+		if (!provider) {
+			return 'groq';
+		}
+
+		parseAssert('provider', ['groq', 'openai', 'anthropic'].includes(provider), 'Must be "groq", "openai", or "anthropic"');
+		return provider as 'groq' | 'openai' | 'anthropic';
+	},
 	GROQ_API_KEY(key?: string) {
+		// Only required if provider is groq (default)
 		if (!key) {
-			throw new KnownError(
-				'Please set your Groq API key via `lazycommit config set GROQ_API_KEY=<your token>`'
-			);
+			return undefined;
 		}
 		parseAssert('GROQ_API_KEY', key.startsWith('gsk_'), 'Must start with "gsk_"');
+
+		return key;
+	},
+	OPENAI_API_KEY(key?: string) {
+		// Only required if provider is openai
+		if (!key) {
+			return undefined;
+		}
+		parseAssert('OPENAI_API_KEY', key.startsWith('sk-') || key.startsWith('sk_'), 'Must start with "sk-" or "sk_"');
+
+		return key;
+	},
+	ANTHROPIC_API_KEY(key?: string) {
+		// Only required if provider is anthropic
+		if (!key) {
+			return undefined;
+		}
+		parseAssert('ANTHROPIC_API_KEY', key.startsWith('sk-ant-'), 'Must start with "sk-ant-"');
 
 		return key;
 	},
@@ -80,7 +105,8 @@ const configParsers = {
 	},
 	model(model?: string) {
 		if (!model || model.length === 0) {
-			return 'openai/gpt-oss-20b';
+			// Default model depends on provider
+			return undefined;
 		}
 
 		return model;
@@ -157,7 +183,40 @@ export const getConfig = async (
 		}
 	}
 
-	return parsedConfig as ValidConfig;
+	// Validate provider-specific requirements
+	const finalConfig = parsedConfig as ValidConfig;
+	const provider = finalConfig.provider || 'groq';
+
+	// Set default model if not specified
+	if (!finalConfig.model) {
+		if (provider === 'openai') {
+			finalConfig.model = 'gpt-4o-mini';
+		} else if (provider === 'anthropic') {
+			finalConfig.model = 'claude-3-5-sonnet-20241022';
+		} else {
+			finalConfig.model = 'openai/gpt-oss-20b';
+		}
+	}
+
+	if (!suppressErrors) {
+		if (provider === 'groq' && !finalConfig.GROQ_API_KEY) {
+			throw new KnownError(
+				'Please set your Groq API key via `lazycommit config set GROQ_API_KEY=<your token>`'
+			);
+		}
+		if (provider === 'openai' && !finalConfig.OPENAI_API_KEY) {
+			throw new KnownError(
+				'Please set your OpenAI API key via `lazycommit config set OPENAI_API_KEY=<your token>`'
+			);
+		}
+		if (provider === 'anthropic' && !finalConfig.ANTHROPIC_API_KEY) {
+			throw new KnownError(
+				'Please set your Anthropic API key via `lazycommit config set ANTHROPIC_API_KEY=<your token>`'
+			);
+		}
+	}
+
+	return finalConfig;
 };
 
 export const setConfigs = async (keyValues: [key: string, value: string][]) => {
