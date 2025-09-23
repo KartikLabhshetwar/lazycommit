@@ -28,7 +28,12 @@ export default () =>
 			return;
 		}
 
-		intro(bgCyan(black(' lazycommit ')));
+		// Check if we're in an interactive terminal
+		const isInteractive = process.stdout.isTTY && process.stdin.isTTY;
+
+		if (isInteractive) {
+			intro(bgCyan(black(' lazycommit ')));
+		}
 
 		const { env } = process;
 		const config = await getConfig({
@@ -40,8 +45,8 @@ export default () =>
 				env.https_proxy || env.HTTPS_PROXY || env.http_proxy || env.HTTP_PROXY,
 		});
 
-		const s = spinner();
-		s.start('The AI is analyzing your changes');
+		const s = isInteractive ? spinner() : null;
+		s?.start('The AI is analyzing your changes');
 		let messages: string[];
 		try {
 			// Get commit context for better AI generation
@@ -74,7 +79,7 @@ export default () =>
 				);
 			}
 		} finally {
-			s.stop('Changes analyzed');
+			s?.stop('Changes analyzed');
 		}
 
 		/**
@@ -109,9 +114,14 @@ export default () =>
 		// Prepend the commit message to the existing content
 		const newContent = baseMessage ? `${commitMessage}\n\n${baseMessage}` : commitMessage;
 		await fs.writeFile(messageFilePath, newContent);
-		outro(`${green('✔')} Saved commit message!`);
+
+		if (isInteractive) {
+			outro(`${green('✔')} Saved commit message!`);
+		}
 	})().catch((error) => {
-		outro(`${red('✖')} ${error.message}`);
+		if (process.stdout.isTTY && process.stdin.isTTY) {
+			outro(`${red('✖')} ${error.message}`);
+		}
 		handleCliError(error);
 		process.exit(1);
 	});

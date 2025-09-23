@@ -76,8 +76,7 @@ cli(
 			const subcommand = rawArgv[1];
 			const args = rawArgv.slice(2);
 			secretsCommand(subcommand as any, args);
-		} else if (isCalledFromGitHook || rawArgv[0]?.endsWith('.txt') || rawArgv[0]?.endsWith('COMMIT_EDITMSG')) {
-			// Running as git hook: either detected by path or by message file argument
+		} else if (isCalledFromGitHook) {
 			prepareCommitMessageHook();
 		} else {
 			lazycommit(
