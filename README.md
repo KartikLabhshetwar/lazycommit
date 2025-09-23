@@ -60,6 +60,39 @@ brew upgrade lazycommit
 
    This will create a `.lazycommit` file in your home directory.
 
+### Secure API Key Storage
+
+lazycommit now supports secure storage of API keys using your system's native credential manager:
+- **macOS**: Keychain Access
+- **Linux**: Secret Service (libsecret)
+- **Windows**: Credential Manager
+
+#### Managing Secrets
+
+Test available storage backends:
+```sh
+lazycommit secrets test
+```
+
+Store API keys securely:
+```sh
+lazycommit secrets set GROQ_API_KEY gsk_...
+lazycommit secrets set OPENAI_API_KEY sk-...
+lazycommit secrets set ANTHROPIC_API_KEY sk-ant-...
+```
+
+Migrate existing keys from `~/.lazycommit` to secure storage:
+```sh
+lazycommit secrets migrate
+```
+
+Export keys from secure storage (for backup):
+```sh
+lazycommit secrets export ~/lazycommit-backup.ini
+```
+
+When secure storage is available, API keys are automatically retrieved from it. The system falls back to file-based storage (`~/.lazycommit`) or environment variables if secure storage is unavailable.
+
 ### Upgrading
 
 Check the installed version with:

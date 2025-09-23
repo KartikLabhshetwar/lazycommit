@@ -6,4 +6,5 @@ describe('lazycommit', ({ runTestSuite }) => {
 	runTestSuite(import('./specs/config.js'));
 	runTestSuite(import('./specs/git-hook.js'));
 	runTestSuite(import('./specs/providers.js'));
+	runTestSuite(import('./specs/secrets.js'));
 });
