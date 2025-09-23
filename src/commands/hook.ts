@@ -6,15 +6,17 @@ import { command } from 'cleye';
 import { assertGitRepo, getHooksDirectory } from '../utils/git.js';
 import { fileExists } from '../utils/fs.js';
 import { KnownError, handleCliError } from '../utils/error.js';
+import { execa } from 'execa';
 
 const hookName = 'prepare-commit-msg';
 
 const hookPath = fileURLToPath(new URL('cli.mjs', import.meta.url));
 
 // Check if called from git hook - needs to handle both regular and worktree paths
+// Also handles custom hook directories like .husky
 export const isCalledFromGitHook = process.argv[1]
 	.replace(/\\/g, '/') // Replace Windows back slashes with forward slashes
-	.endsWith(`/hooks/${hookName}`);
+	.endsWith(`/${hookName}`);
 
 const isWindows = process.platform === 'win32';
 const windowsHook = `
@@ -35,10 +37,15 @@ export default command(
 			// Get the correct hooks directory (handles worktrees and custom paths)
 			const hooksDir = await getHooksDirectory();
 
-			// Check if using Husky or other hook managers
-			if (hooksDir.includes('.husky')) {
-				console.log(`${green('ℹ')} Detected Husky hooks directory: ${hooksDir}`);
-				console.log(`${green('ℹ')} Installing lazycommit hook alongside Husky hooks`);
+			// Check if using custom hooks path
+			try {
+				const { stdout: customPath } = await execa('git', ['config', '--get', 'core.hooksPath']);
+				if (customPath.trim()) {
+					console.log(`${green('ℹ')} Detected custom hooks directory: ${hooksDir}`);
+					console.log(`${green('ℹ')} Installing lazycommit hook in custom location`);
+				}
+			} catch {
+				// No custom path
 			}
 
 			const absoltueSymlinkPath = path.join(hooksDir, hookName);
@@ -69,9 +76,14 @@ export default command(
 				}
 				console.log(`${green('✔')} Hook installed to ${absoltueSymlinkPath}`);
 
-				// Additional info for Husky users
-				if (hooksDir.includes('.husky')) {
-					console.log(`${green('ℹ')} Note: This hook will run alongside your existing Husky hooks`);
+				// Additional info for custom hook paths
+				try {
+					const { stdout: customPath } = await execa('git', ['config', '--get', 'core.hooksPath']);
+					if (customPath.trim()) {
+						console.log(`${green('ℹ')} Note: This hook will run alongside other hooks in ${customPath.trim()}`);
+					}
+				} catch {
+					// No custom path
 				}
 				return;
 			}
