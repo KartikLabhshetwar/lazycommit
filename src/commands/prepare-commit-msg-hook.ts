@@ -87,30 +87,28 @@ export default () =>
 		const supportsComments = baseMessage !== '';
 		const hasMultipleMessages = messages.length > 1;
 
-		let instructions = '';
-
-		if (supportsComments) {
-			instructions = `# 🤖 AI generated commit${
-				hasMultipleMessages ? 's' : ''
-			}\n`;
-		}
+		let commitMessage = '';
 
 		if (hasMultipleMessages) {
+			// Multiple messages - comment them all out for selection
 			if (supportsComments) {
-				instructions +=
-					'# Select one of the following messages by uncommeting:\n';
+				commitMessage = `# 🤖 AI generated commits\n`;
+				commitMessage += '# Select one of the following messages by uncommenting:\n\n';
 			}
-			instructions += `\n${messages
+			commitMessage += messages
 				.map((message) => `# ${message}`)
-				.join('\n')}`;
+				.join('\n');
 		} else {
+			// Single message - use it directly
+			commitMessage = messages[0];
 			if (supportsComments) {
-				instructions += '# Edit the message below and commit:\n';
+				commitMessage = `${messages[0]}\n\n# 🤖 AI generated commit message`;
 			}
-			instructions += `\n${messages[0]}\n`;
 		}
 
-		await fs.appendFile(messageFilePath, instructions);
+		// Prepend the commit message to the existing content
+		const newContent = baseMessage ? `${commitMessage}\n\n${baseMessage}` : commitMessage;
+		await fs.writeFile(messageFilePath, newContent);
 		outro(`${green('✔')} Saved commit message!`);
 	})().catch((error) => {
 		outro(`${red('✖')} ${error.message}`);
