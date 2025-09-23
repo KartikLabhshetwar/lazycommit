@@ -3,18 +3,18 @@ import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { green, red } from 'kolorist';
 import { command } from 'cleye';
-import { assertGitRepo } from '../utils/git.js';
+import { assertGitRepo, getHooksDirectory } from '../utils/git.js';
 import { fileExists } from '../utils/fs.js';
 import { KnownError, handleCliError } from '../utils/error.js';
 
 const hookName = 'prepare-commit-msg';
-const symlinkPath = `.git/hooks/${hookName}`;
 
 const hookPath = fileURLToPath(new URL('cli.mjs', import.meta.url));
 
+// Check if called from git hook - needs to handle both regular and worktree paths
 export const isCalledFromGitHook = process.argv[1]
 	.replace(/\\/g, '/') // Replace Windows back slashes with forward slashes
-	.endsWith(`/${symlinkPath}`);
+	.endsWith(`/hooks/${hookName}`);
 
 const isWindows = process.platform === 'win32';
 const windowsHook = `
@@ -29,10 +29,12 @@ export default command(
 	},
 	(argv) => {
 		(async () => {
-			const gitRepoPath = await assertGitRepo();
+			await assertGitRepo();
 			const { installUninstall: mode } = argv._;
 
-			const absoltueSymlinkPath = path.join(gitRepoPath, symlinkPath);
+			// Get the correct hooks directory (handles worktrees)
+			const hooksDir = await getHooksDirectory();
+			const absoltueSymlinkPath = path.join(hooksDir, hookName);
 			const hookExists = await fileExists(absoltueSymlinkPath);
 			if (mode === 'install') {
 				if (hookExists) {

@@ -1,4 +1,5 @@
 import { execa } from 'execa';
+import path from 'path';
 import { KnownError } from './error.js';
 
 export const assertGitRepo = async () => {
@@ -13,6 +14,33 @@ export const assertGitRepo = async () => {
 	}
 
 	return stdout;
+};
+
+export const getWorktreeInfo = async () => {
+	try {
+		const { stdout: gitDir } = await execa('git', ['rev-parse', '--git-dir']);
+		const { stdout: commonDir } = await execa('git', ['rev-parse', '--git-common-dir']);
+
+		// Convert relative paths to absolute paths
+		const absoluteGitDir = path.resolve(gitDir.trim());
+		const absoluteCommonDir = path.resolve(commonDir.trim());
+
+		const isWorktree = absoluteGitDir !== absoluteCommonDir;
+		return {
+			isWorktree,
+			gitDir: absoluteGitDir,
+			commonDir: absoluteCommonDir
+		};
+	} catch {
+		throw new KnownError('Failed to determine git repository structure');
+	}
+};
+
+export const getHooksDirectory = async () => {
+	const { gitDir } = await getWorktreeInfo();
+	// For worktrees, hooks are in the worktree's git directory
+	// For regular repos, this will be .git/hooks
+	return path.join(gitDir, 'hooks');
 };
 
 const excludeFromDiff = (path: string) => `:(exclude)${path}`;
