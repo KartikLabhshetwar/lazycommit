@@ -1,4 +1,6 @@
-import Groq from 'groq-sdk';
+import { createGroq } from '@ai-sdk/groq';
+import { generateText } from 'ai';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 import { KnownError } from './error.js';
 import type { CommitType } from './config.js';
 import { generatePrompt } from './prompt.js';
@@ -6,7 +8,7 @@ import { generatePrompt } from './prompt.js';
 const createChatCompletion = async (
 	apiKey: string,
 	model: string,
-	messages: Array<{ role: string; content: string }>,
+	messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
 	temperature: number,
 	top_p: number,
 	frequency_penalty: number,
@@ -16,58 +18,97 @@ const createChatCompletion = async (
 	timeout: number,
 	proxy?: string
 ) => {
-	const client = new Groq({
+	// Configure Groq provider with proxy support if provided
+	const groqConfig: Parameters<typeof createGroq>[0] = {
 		apiKey,
-		timeout,
-	});
+	};
+
+	if (proxy) {
+		const proxyAgent = new HttpsProxyAgent(proxy);
+		// Use a custom fetch that includes the proxy agent
+		// Note: Node.js fetch accepts agent in RequestInit
+		groqConfig.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+			// Node.js fetch accepts agent in RequestInit, but TypeScript types don't reflect this
+			// We need to extend the type to include the agent property
+			interface NodeRequestInit extends RequestInit {
+				agent?: HttpsProxyAgent<string>;
+			}
+			const requestInit: NodeRequestInit = {
+				...init,
+				agent: proxyAgent,
+			};
+			// Cast is required because TypeScript's fetch type doesn't include agent
+			// but Node.js fetch does accept it at runtime
+			return fetch(input, requestInit as RequestInit);
+		};
+	}
+
+	const groq = createGroq(groqConfig);
 
 	try {
 		if (n > 1) {
 			const completions = await Promise.all(
-				Array.from({ length: n }, () =>
-					client.chat.completions.create({
-						model,
-						messages: messages as any,
+				Array.from({ length: n }, async () => {
+					const result = await generateText({
+						model: groq(model),
+						messages,
 						temperature,
-						top_p,
-						frequency_penalty,
-						presence_penalty,
-						max_tokens,
-						n: 1,
-					})
-				)
+						topP: top_p,
+						frequencyPenalty: frequency_penalty,
+						presencePenalty: presence_penalty,
+						maxOutputTokens: max_tokens,
+						abortSignal: AbortSignal.timeout(timeout),
+					});
+					return {
+						choices: [{
+							message: {
+								content: result.text,
+								reasoning: (result as any).reasoning || '',
+							}
+						}]
+					};
+				})
 			);
-			
+
 			return {
 				choices: completions.flatMap(completion => completion.choices),
 			};
 		}
 
-		const completion = await client.chat.completions.create({
-			model,
+		const result = await generateText({
+			model: groq(model),
 			messages: messages as any,
 			temperature,
-			top_p,
-			frequency_penalty,
-			presence_penalty,
-			max_tokens,
-			n: 1,
+			topP: top_p,
+			frequencyPenalty: frequency_penalty,
+			presencePenalty: presence_penalty,
+			maxOutputTokens: max_tokens,
+			abortSignal: AbortSignal.timeout(timeout),
 		});
 
-		return completion;
+		return {
+			choices: [{
+				message: {
+					content: result.text,
+					reasoning: (result as any).reasoning || '',
+				}
+			}]
+		};
 	} catch (error: any) {
-		if (error instanceof Groq.APIError) {
-			let errorMessage = `Groq API Error: ${error.status} - ${error.name}`;
-			
+		// Handle Vercel AI SDK errors
+		if (error.name === 'AI_APICallError' || error.statusCode) {
+			let errorMessage = `Groq API Error: ${error.statusCode || 'Unknown'} - ${error.name || 'API Error'}`;
+
 			if (error.message) {
 				errorMessage += `\n\n${error.message}`;
 			}
 
-			if (error.status === 500) {
+			if (error.statusCode === 500) {
 				errorMessage += '\n\nCheck the API status: https://console.groq.com/status';
 			}
 
-			if (error.status === 413 || (error.message && error.message.includes('rate_limit_exceeded'))) {
+			if (error.statusCode === 413 || error.statusCode === 429 ||
+				(error.message && (error.message.includes('rate_limit') || error.message.includes('token limit')))) {
 				errorMessage += '\n\n💡 Tip: Your diff is too large. Try:\n' +
 					'1. Commit files in smaller batches\n' +
 					'2. Exclude large files with --exclude\n' +
@@ -82,6 +123,10 @@ const createChatCompletion = async (
 			throw new KnownError(
 				`Error connecting to ${error.hostname} (${error.syscall}). Are you connected to the internet?`
 			);
+		}
+
+		if (error.name === 'AbortError') {
+			throw new KnownError(`Request timeout after ${timeout}ms. Try increasing the timeout with --timeout`);
 		}
 
 		throw error;
@@ -153,13 +198,17 @@ export const generateCommitMessageFromSummary = async (
 
 	const messages = (completion.choices || [])
 		.map((c) => c.message?.content || '')
-		.map((t) => sanitizeMessage(t as string))
+		.map((t) => sanitizeMessage(t))
 		.filter(Boolean);
 
 	if (messages.length > 0) return deduplicateMessages(messages);
 
-	const reasons = (completion.choices as any[])
-		.map((c:any)=>c.message?.reasoning || '')
+	// Extract reasoning from messages if available (not part of standard type but may exist)
+	const reasons = completion.choices
+		.map((c) => {
+			const message = c.message as { reasoning?: string };
+			return message?.reasoning || '';
+		})
 		.filter(Boolean) as string[];
 	for (const r of reasons) {
 		const derived = deriveMessageFromReasoning(r, maxLength);

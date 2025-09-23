@@ -16,7 +16,7 @@ import {
     buildCompactSummary,
 } from '../utils/git.js';
 import { getConfig } from '../utils/config.js';
-import { generateCommitMessageFromSummary } from '../utils/groq.js';
+import { generateCommitMessageFromSummary } from '../utils/ai.js';
 import { KnownError, handleCliError } from '../utils/error.js';
 
 type CommitGroup = {
@@ -296,15 +296,11 @@ export default async (
 						
 						try {
 							const messages = await generateCommitMessageFromSummary(
-								config.GROQ_API_KEY,
-								config.model,
-								config.locale,
+								config,
 								prompt,
 								1,
 								config['max-length'],
-								'conventional',
-								config.timeout,
-								config.proxy
+								'conventional'
 							);
 							if (messages.length > 0) {
 								group.message = messages[0];
@@ -366,30 +362,22 @@ export default async (
 			const compact = await buildCompactSummary(excludeFiles, 25);
 			if (compact) {
 				messages = await generateCommitMessageFromSummary(
-					config.GROQ_API_KEY,
-					config.model,
-					config.locale,
+					config,
 					compact,
 					config.generate,
 					config['max-length'],
-					config.type,
-					config.timeout,
-					config.proxy
+					config.type
 				);
 			} else {
 				// Fallback to simple file list if summary fails
 				const fileList = staged.files.join(', ');
 				const fallbackPrompt = `Generate a commit message for these files: ${fileList}`;
 				messages = await generateCommitMessageFromSummary(
-					config.GROQ_API_KEY,
-					config.model,
-					config.locale,
+					config,
 					fallbackPrompt,
 					config.generate,
 					config['max-length'],
-					config.type,
-					config.timeout,
-					config.proxy
+					config.type
 				);
 			}
 		} finally {

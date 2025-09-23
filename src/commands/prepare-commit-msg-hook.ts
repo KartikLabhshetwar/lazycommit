@@ -3,7 +3,7 @@ import { intro, outro, spinner } from '@clack/prompts';
 import { black, green, red, bgCyan } from 'kolorist';
 import { getStagedDiff, buildCompactSummary } from '../utils/git.js';
 import { getConfig } from '../utils/config.js';
-import { generateCommitMessageFromSummary } from '../utils/groq.js';
+import { generateCommitMessageFromSummary } from '../utils/ai.js';
 import { KnownError, handleCliError } from '../utils/error.js';
 
 const [messageFilePath, commitSource] = process.argv.slice(2);
@@ -32,6 +32,9 @@ export default () =>
 		const { env } = process;
 		const config = await getConfig({
 			GROQ_API_KEY: env.GROQ_API_KEY,
+			OPENAI_API_KEY: env.OPENAI_API_KEY,
+			ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY,
+			provider: env.LAZYCOMMIT_PROVIDER,
 			proxy:
 				env.https_proxy || env.HTTPS_PROXY || env.http_proxy || env.HTTP_PROXY,
 		});
@@ -43,30 +46,22 @@ export default () =>
 			const compact = await buildCompactSummary();
 			if (compact) {
 				messages = await generateCommitMessageFromSummary(
-					config.GROQ_API_KEY,
-					config.model,
-					config.locale,
+					config,
 					compact,
 					config.generate,
 					config['max-length'],
-					config.type,
-					config.timeout,
-					config.proxy
+					config.type
 				);
 			} else {
 				// Fallback to simple file list if summary fails
 				const fileList = staged!.files.join(', ');
 				const fallbackPrompt = `Generate a commit message for these files: ${fileList}`;
 				messages = await generateCommitMessageFromSummary(
-					config.GROQ_API_KEY,
-					config.model,
-					config.locale,
+					config,
 					fallbackPrompt,
 					config.generate,
 					config['max-length'],
-					config.type,
-					config.timeout,
-					config.proxy
+					config.type
 				);
 			}
 		} finally {
