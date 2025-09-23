@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "mcp__task-master-ai__add_subtask"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

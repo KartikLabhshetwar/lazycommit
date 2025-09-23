@@ -1,0 +1,124 @@
+# Task ID: 2
+# Title: Add OpenAI API support as alternative provider
+# Status: in-progress
+# Dependencies: 1
+# Priority: medium
+# Description: Implement OpenAI as an alternative AI provider using Vercel AI SDK's @ai-sdk/openai package, allowing users to configure and use OpenAI models (gpt-4, gpt-3.5-turbo) for commit message generation while maintaining backward compatibility with the existing Groq implementation.
+# Details:
+**Implementation Steps:**
+
+1. **Install Required Package:**
+   ```bash
+   pnpm add @ai-sdk/openai
+   ```
+
+2. **Update Configuration System (src/utils/config.ts):**
+   - Add `OPENAI_API_KEY` config parser similar to existing `GROQ_API_KEY`
+   - Add `provider` config option to select between 'groq' (default) and 'openai'
+   - Update `model` config to accept OpenAI model names
+   - Validate API keys based on selected provider
+
+3. **Create Provider Abstraction (src/utils/ai-provider.ts):**
+   - Create interface for AI providers with common methods
+   - Implement factory pattern to instantiate correct provider
+   - Handle provider-specific configurations and error messages
+
+4. **Refactor AI Integration (src/utils/groq.ts → src/utils/ai.ts):**
+   - Rename file to reflect multi-provider support
+   - Modify `createChatCompletion` to dynamically use selected provider
+   - Import and configure `@ai-sdk/openai` alongside existing `@ai-sdk/groq`
+   - Implement provider switching logic based on config
+   - Update error handling to show provider-specific messages
+
+5. **Update CLI Commands:**
+   - Modify src/commands/lazycommit.ts to use new AI abstraction
+   - Update src/commands/prepare-commit-msg-hook.ts similarly
+   - Add provider selection to config command options
+
+6. **Update Package Metadata:**
+   - Update package.json description and keywords
+   - Update README with OpenAI configuration instructions
+
+**Key Implementation Details:**
+```typescript
+// Provider selection in createChatCompletion
+const provider = config.provider || 'groq';
+const aiProvider = provider === 'openai' 
+  ? createOpenAI({ apiKey: config.OPENAI_API_KEY, ... })
+  : createGroq({ apiKey: config.GROQ_API_KEY, ... });
+
+// Model instantiation
+const modelInstance = provider === 'openai'
+  ? openai(model) // e.g., 'gpt-4', 'gpt-3.5-turbo'
+  : groq(model);   // e.g., 'openai/gpt-oss-20b'
+```
+
+**Configuration Example:**
+```bash
+# For OpenAI
+lazycommit config set provider=openai
+lazycommit config set OPENAI_API_KEY=sk-...
+lazycommit config set model=gpt-4
+
+# For Groq (default)
+lazycommit config set provider=groq
+lazycommit config set GROQ_API_KEY=gsk_...
+lazycommit config set model=openai/gpt-oss-20b
+```
+
+# Test Strategy:
+1. **Unit Tests (tests/specs/ai/):**
+   - Create new test suite for OpenAI provider integration
+   - Test provider selection logic with both Groq and OpenAI configs
+   - Mock API responses for both providers
+   - Verify error handling for invalid API keys and rate limits
+   - Test backward compatibility with existing Groq-only configs
+
+2. **Integration Tests:**
+   - Test complete flow with OpenAI API key configured
+   - Verify commit message generation with different OpenAI models
+   - Test provider switching via config commands
+   - Ensure proxy support works with both providers
+
+3. **Configuration Tests:**
+   - Validate OPENAI_API_KEY format (starts with 'sk-')
+   - Test provider config validation and defaults
+   - Verify model name validation for each provider
+
+4. **Manual Testing:**
+   - Test with real OpenAI API key and various models
+   - Compare output quality between Groq and OpenAI
+   - Verify rate limiting and error recovery
+   - Test migration path for existing users
+
+# Subtasks:
+## 1. Install @ai-sdk/openai package [done]
+### Dependencies: None
+### Description: Add the @ai-sdk/openai package to dependencies using pnpm
+### Details:
+Run `pnpm add @ai-sdk/openai` to install the OpenAI provider for Vercel AI SDK. This package provides the necessary bindings to use OpenAI models through the unified AI SDK interface.
+
+## 2. Add provider configuration to config system [in-progress]
+### Dependencies: 2.1
+### Description: Extend the configuration system to support provider selection (groq, openai) and API key configuration for each provider
+### Details:
+Update src/utils/config.ts to add PROVIDER config option (values: 'groq', 'openai'), OPENAI_API_KEY config, and OPENAI_MODEL config. Ensure backward compatibility by defaulting to 'groq' provider when not specified.
+
+## 3. Create provider abstraction layer [pending]
+### Dependencies: 2.2
+### Description: Refactor groq.ts into a provider-agnostic module that can handle multiple AI providers
+### Details:
+Create src/utils/ai-provider.ts that abstracts the provider logic. Move common functionality (message processing, error handling) to this module. Create a factory function that returns the appropriate provider (Groq or OpenAI) based on configuration.
+
+## 4. Implement OpenAI provider with model support [pending]
+### Dependencies: 2.3
+### Description: Create OpenAI provider implementation using @ai-sdk/openai with support for GPT-4 and GPT-3.5-turbo models
+### Details:
+Implement createOpenAI provider initialization, map OpenAI-specific parameters, handle OpenAI-specific error codes and rate limits. Support models: gpt-4, gpt-4-turbo, gpt-3.5-turbo. Maintain the same interface as the Groq implementation.
+
+## 5. Update CLI to support provider selection [pending]
+### Dependencies: 2.4
+### Description: Add CLI flags and configuration commands to select and configure AI providers
+### Details:
+Add --provider flag to main command, update config commands to handle provider-specific settings (lazycommit config set PROVIDER=openai), update help text to show available providers and models.
+

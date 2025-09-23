@@ -1,0 +1,173 @@
+# Task ID: 3
+# Title: Add support for Anthropic's Claude API as alternative provider
+# Status: pending
+# Dependencies: 1, 2
+# Priority: medium
+# Description: Implement Anthropic Claude as an alternative AI provider using Vercel AI SDK's @ai-sdk/anthropic package, allowing users to configure and use Claude models (claude-3-opus, claude-3-sonnet, claude-3-haiku) for commit message generation while maintaining backward compatibility with existing Groq implementation.
+# Details:
+**Implementation Steps:**
+
+1. **Install Required Package:**
+   ```bash
+   pnpm add @ai-sdk/anthropic
+   ```
+
+2. **Update Configuration System (src/utils/config.ts):**
+   - Add `ANTHROPIC_API_KEY` config parser with validation (should start with 'sk-ant-')
+   - Extend provider config option to accept 'groq' (default), 'openai', or 'anthropic'
+   - Update model config validation to accept Claude model names
+   - Add provider-specific API key validation in getConfig function
+
+3. **Extend Provider Abstraction:**
+   Building on the provider abstraction from Task 2:
+   - Add Anthropic provider to the factory pattern in src/utils/ai-provider.ts
+   - Map Claude-specific parameters (claude uses different token counting)
+   - Handle Anthropic's specific error response format
+
+4. **Update AI Integration (src/utils/ai.ts):**
+   - Import and configure `@ai-sdk/anthropic` package
+   - Add createAnthropic initialization with API key
+   - Extend provider switching logic to include 'anthropic'
+   - Map Claude model names (claude-3-opus-20240229, claude-3-sonnet-20240229, claude-3-haiku-20240307)
+   - Handle Anthropic-specific rate limits and context window sizes
+
+5. **Error Handling Updates:**
+   - Add Anthropic-specific error messages and status codes
+   - Handle Claude's unique error responses (e.g., overloaded_error)
+   - Provide helpful tips for Claude-specific limitations
+   - Update timeout recommendations for Claude models
+
+6. **Update CLI and Documentation:**
+   - Update help text in src/cli.ts to mention Claude support
+   - Add Claude configuration examples to config command
+   - Update package.json keywords to include 'anthropic' and 'claude'
+
+**Key Implementation Details:**
+```typescript
+// src/utils/config.ts - Add ANTHROPIC_API_KEY parser
+ANTHROPIC_API_KEY(key?: string) {
+  if (!key) {
+    throw new KnownError(
+      'Please set your Anthropic API key via `lazycommit config set ANTHROPIC_API_KEY=<your token>`'
+    );
+  }
+  parseAssert('ANTHROPIC_API_KEY', key.startsWith('sk-ant-'), 'Must start with "sk-ant-"');
+  return key;
+},
+
+// Provider initialization in createChatCompletion
+import { createAnthropic } from '@ai-sdk/anthropic';
+
+const getAIProvider = (provider: string, config: ValidConfig) => {
+  switch(provider) {
+    case 'anthropic':
+      return createAnthropic({ 
+        apiKey: config.ANTHROPIC_API_KEY,
+        // Claude doesn't require explicit timeout in provider config
+      });
+    case 'openai':
+      return createOpenAI({ apiKey: config.OPENAI_API_KEY });
+    default:
+      return createGroq({ apiKey: config.GROQ_API_KEY });
+  }
+};
+
+// Model selection
+const modelInstance = (() => {
+  switch(provider) {
+    case 'anthropic':
+      return anthropic(model); // e.g., 'claude-3-opus-20240229'
+    case 'openai':
+      return openai(model);
+    default:
+      return groq(model);
+  }
+})();
+```
+
+**Configuration Examples:**
+```bash
+# For Claude
+lazycommit config set provider=anthropic
+lazycommit config set ANTHROPIC_API_KEY=sk-ant-...
+lazycommit config set model=claude-3-sonnet-20240229
+
+# Model options:
+# claude-3-opus-20240229 (most capable)
+# claude-3-sonnet-20240229 (balanced)
+# claude-3-haiku-20240307 (fastest)
+```
+
+**Claude-Specific Considerations:**
+- Claude has different context window sizes (200k for Opus/Sonnet, 100k for Haiku)
+- Response format may include thinking/reasoning that needs special handling
+- Rate limits differ from OpenAI and Groq
+- Claude excels at understanding context and nuance in commit messages
+
+# Test Strategy:
+1. **Unit Tests (tests/specs/ai/anthropic.ts):**
+   - Create test suite specifically for Anthropic provider
+   - Mock Claude API responses with proper response structure
+   - Test ANTHROPIC_API_KEY validation (must start with 'sk-ant-')
+   - Verify provider selection with 'anthropic' option
+   - Test error handling for Claude-specific errors (overloaded_error, rate limits)
+   - Ensure proper parameter mapping for generateText with Claude models
+
+2. **Integration Tests:**
+   - Test end-to-end flow with mocked Anthropic API
+   - Verify model switching between claude-3-opus, sonnet, and haiku
+   - Test multi-provider configs (switching between Groq, OpenAI, and Anthropic)
+   - Verify Claude's response parsing and message extraction
+   - Test with large diffs to verify Claude's superior context handling
+
+3. **Configuration Tests (tests/specs/config.ts):**
+   - Add tests for ANTHROPIC_API_KEY config parser
+   - Test provider validation with 'anthropic' option
+   - Verify fallback behavior when Anthropic key is missing
+   - Test model name validation for Claude models
+
+4. **Manual Testing:**
+   - Test with real Anthropic API key (if available)
+   - Compare commit message quality across all three providers
+   - Test Claude's handling of complex multi-file commits
+   - Verify Claude's conventional commit compliance
+   - Test timeout behavior with Claude models
+   - Verify error messages are helpful for Claude-specific issues
+
+5. **Backward Compatibility:**
+   - Ensure existing Groq configs continue to work
+   - Verify OpenAI integration (from Task 2) remains functional
+   - Test that missing provider config defaults to Groq
+   - Validate that existing tests still pass
+
+# Subtasks:
+## 1. Install @ai-sdk/anthropic package [pending]
+### Dependencies: None
+### Description: Add the @ai-sdk/anthropic package to dependencies using pnpm
+### Details:
+Run `pnpm add @ai-sdk/anthropic` to install the Anthropic provider for Vercel AI SDK. This package provides the necessary bindings to use Claude models through the unified AI SDK interface.
+
+## 2. Add Anthropic configuration options [pending]
+### Dependencies: 3.1
+### Description: Extend the configuration system to support Anthropic as a provider option with Claude-specific settings
+### Details:
+Update src/utils/config.ts to add 'anthropic' as a PROVIDER option, ANTHROPIC_API_KEY config, and ANTHROPIC_MODEL config. Support Claude models: claude-3-opus-20240229, claude-3-sonnet-20240229, claude-3-haiku-20240307, and newer versions.
+
+## 3. Implement Anthropic provider with Claude models [pending]
+### Dependencies: 3.2
+### Description: Create Anthropic provider implementation using @ai-sdk/anthropic with support for Claude 3 models
+### Details:
+Implement createAnthropic provider initialization, map Anthropic-specific parameters, handle Anthropic-specific error codes and rate limits. Support Claude 3 Opus, Sonnet, and Haiku models. Maintain the same interface as other providers.
+
+## 4. Add tests for multi-provider support [pending]
+### Dependencies: 3.3
+### Description: Create comprehensive tests for all three providers (Groq, OpenAI, Anthropic) to ensure consistent behavior
+### Details:
+Write tests to verify provider switching, configuration handling, error handling for each provider, model selection, and consistent commit message generation across all providers. Mock API responses for testing without actual API calls.
+
+## 5. Update documentation and README [pending]
+### Dependencies: 3.4
+### Description: Document the multi-provider support with setup instructions and usage examples
+### Details:
+Update README.md to document supported providers (Groq, OpenAI, Anthropic), configuration instructions for each provider, available models, example commands, and migration guide from single-provider to multi-provider setup.
+

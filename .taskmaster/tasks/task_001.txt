@@ -1,0 +1,128 @@
+# Task ID: 1
+# Title: Migrate to Vercel AI SDK for Groq integration
+# Status: done
+# Dependencies: None
+# Priority: medium
+# Description: Replace the current direct Groq API implementation in src/utils/groq.ts with Vercel's AI SDK (@ai-sdk/groq and ai packages) to gain better streaming support, improved error handling, and a more standardized AI provider interface.
+# Details:
+**Migration Steps:**
+
+1. **Install Required Packages:**
+   ```bash
+   pnpm add @ai-sdk/groq ai
+   pnpm remove groq-sdk
+   ```
+
+2. **Refactor src/utils/groq.ts:**
+   - Replace `groq-sdk` import with `@ai-sdk/groq` provider
+   - Utilize `generateText` from `ai` package instead of direct API calls
+   - Maintain existing function signatures for backward compatibility
+   - Preserve current error handling patterns while leveraging SDK's built-in error types
+
+3. **Key Implementation Changes:**
+   - Replace `new Groq()` client initialization with `createGroq()` from @ai-sdk/groq
+   - Convert `client.chat.completions.create()` calls to `generateText()` with proper model configuration
+   - Map existing parameters (temperature, top_p, frequency_penalty, etc.) to AI SDK format
+   - Handle multiple completions (n > 1) using Promise.all with generateText
+   - Preserve the sanitizeMessage, deduplicateMessages, and deriveMessageFromReasoning logic
+
+4. **Error Handling Updates:**
+   - Map AI SDK error types to existing KnownError patterns
+   - Maintain rate limit and token limit error messages
+   - Preserve network error handling (ENOTFOUND)
+   - Keep the user-friendly error messages and tips
+
+5. **Configuration Adjustments:**
+   - Update timeout handling to use AI SDK's configuration
+   - Ensure proxy support if available in AI SDK
+   - Maintain backward compatibility with existing config structure
+
+6. **Function Signature Preservation:**
+   - Keep `generateCommitMessageFromSummary` function signature unchanged
+   - Ensure all existing parameters are properly mapped to AI SDK equivalents
+   - Maintain return type as string array
+
+**Code Example Structure:**
+```typescript
+import { createGroq } from '@ai-sdk/groq';
+import { generateText } from 'ai';
+
+const groq = createGroq({
+  apiKey: apiKey,
+  // other config
+});
+
+const result = await generateText({
+  model: groq(model),
+  messages: [...],
+  temperature,
+  topP: top_p,
+  maxTokens: max_tokens,
+  // map other parameters
+});
+```
+
+# Test Strategy:
+1. **Unit Tests:**
+   - Run existing test suite in tests/specs/groq/ to ensure backward compatibility
+   - Verify generateCommitMessageFromSummary produces same output format
+   - Test error handling for rate limits, token limits, and network errors
+   - Validate that multiple completions (n > 1) still work correctly
+
+2. **Integration Tests:**
+   - Execute tests/specs/cli/commits.ts to verify end-to-end functionality
+   - Test with various diff sizes to ensure summary generation works
+   - Verify multi-commit workflow in src/commands/lazycommit.ts functions correctly
+   - Test git hook functionality via tests/specs/git-hook.ts
+
+3. **Manual Testing:**
+   - Create test commits with staged changes
+   - Run `pnpm build && ./dist/cli.mjs` to test the built CLI
+   - Test with different models (llama-3.3-70b-versatile, mixtral-8x7b-32768, etc.)
+   - Verify error messages appear correctly for API failures
+   - Test with large diffs to trigger summary mode
+   - Verify --split flag still creates multiple commits
+
+4. **Configuration Testing:**
+   - Test with various timeout values
+   - Verify API key configuration still works via `lazycommit config set`
+   - Ensure model selection works correctly
+   - Test max-length parameter enforcement
+
+# Subtasks:
+## 1. Install Vercel AI SDK packages and remove groq-sdk [done]
+### Dependencies: None
+### Description: Add @ai-sdk/groq and ai packages to dependencies, remove groq-sdk package from the project
+### Details:
+Execute package manager commands to install the new Vercel AI SDK packages (@ai-sdk/groq and ai) and remove the existing groq-sdk package. Update package.json dependencies to reflect the migration to Vercel's AI SDK.
+
+## 2. Refactor imports and initialize Groq provider using Vercel AI SDK [done]
+### Dependencies: 1.1
+### Description: Replace groq-sdk imports with @ai-sdk/groq and ai imports, update client initialization to use createGroq
+### Details:
+In src/utils/groq.ts, replace the import statement 'import Groq from "groq-sdk"' with imports from '@ai-sdk/groq' (createGroq) and 'ai' (generateText). Replace the Groq client instantiation (new Groq()) with createGroq() factory function, maintaining API key and timeout configuration.
+
+## 3. Refactor createChatCompletion to use generateText API [done]
+### Dependencies: 1.2
+### Description: Convert the existing createChatCompletion function to use Vercel AI SDK's generateText instead of direct API calls
+### Details:
+Refactor the createChatCompletion function to use generateText() from the ai package. Map existing parameters (temperature, top_p, frequency_penalty, presence_penalty, max_tokens) to AI SDK's format. Handle the n > 1 case using Promise.all with multiple generateText calls. Ensure the response structure is mapped correctly to maintain backward compatibility with existing code expecting completion.choices array.
+
+## 4. Update error handling to use Vercel AI SDK error types [done]
+### Dependencies: 1.3
+### Description: Map Vercel AI SDK error types to existing KnownError patterns while preserving user-friendly error messages
+### Details:
+Replace error handling logic that checks for 'Groq.APIError' with appropriate Vercel AI SDK error types. Maintain existing error messages for rate limits (status 413), token limits, API status 500 errors, and network errors (ENOTFOUND). Ensure all existing error tips and guidance are preserved in the new error handling implementation.
+
+## 5. Preserve message processing logic and maintain backward compatibility [done]
+### Dependencies: 1.3, 1.4
+### Description: Ensure sanitizeMessage, deduplicateMessages, and deriveMessageFromReasoning functions work with new response format
+### Details:
+Update the generateCommitMessageFromSummary function to work with Vercel AI SDK's response format. Map the generateText result to extract message content similar to how completion.choices is currently processed. Ensure the reasoning fallback logic continues to work if available in the AI SDK response. Maintain the exact same return type (string array) and function signature.
+
+## 6. Run comprehensive tests and update documentation [done]
+### Dependencies: 1.5
+### Description: Execute all tests to verify backward compatibility and update any relevant documentation or comments
+### Details:
+Run the complete test suite including unit tests and integration tests. Verify that all existing functionality is preserved, including multi-commit mode, file classification, and conventional commit generation. Update any inline comments in the code to reflect the new Vercel AI SDK usage. Ensure all existing CLI commands continue to work without changes.
+

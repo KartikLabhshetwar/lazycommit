@@ -1,0 +1,328 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": 1,
+        "title": "Migrate to Vercel AI SDK for Groq integration",
+        "description": "Replace the current direct Groq API implementation in src/utils/groq.ts with Vercel's AI SDK (@ai-sdk/groq and ai packages) to gain better streaming support, improved error handling, and a more standardized AI provider interface.",
+        "details": "**Migration Steps:**\n\n1. **Install Required Packages:**\n   ```bash\n   pnpm add @ai-sdk/groq ai\n   pnpm remove groq-sdk\n   ```\n\n2. **Refactor src/utils/groq.ts:**\n   - Replace `groq-sdk` import with `@ai-sdk/groq` provider\n   - Utilize `generateText` from `ai` package instead of direct API calls\n   - Maintain existing function signatures for backward compatibility\n   - Preserve current error handling patterns while leveraging SDK's built-in error types\n\n3. **Key Implementation Changes:**\n   - Replace `new Groq()` client initialization with `createGroq()` from @ai-sdk/groq\n   - Convert `client.chat.completions.create()` calls to `generateText()` with proper model configuration\n   - Map existing parameters (temperature, top_p, frequency_penalty, etc.) to AI SDK format\n   - Handle multiple completions (n > 1) using Promise.all with generateText\n   - Preserve the sanitizeMessage, deduplicateMessages, and deriveMessageFromReasoning logic\n\n4. **Error Handling Updates:**\n   - Map AI SDK error types to existing KnownError patterns\n   - Maintain rate limit and token limit error messages\n   - Preserve network error handling (ENOTFOUND)\n   - Keep the user-friendly error messages and tips\n\n5. **Configuration Adjustments:**\n   - Update timeout handling to use AI SDK's configuration\n   - Ensure proxy support if available in AI SDK\n   - Maintain backward compatibility with existing config structure\n\n6. **Function Signature Preservation:**\n   - Keep `generateCommitMessageFromSummary` function signature unchanged\n   - Ensure all existing parameters are properly mapped to AI SDK equivalents\n   - Maintain return type as string array\n\n**Code Example Structure:**\n```typescript\nimport { createGroq } from '@ai-sdk/groq';\nimport { generateText } from 'ai';\n\nconst groq = createGroq({\n  apiKey: apiKey,\n  // other config\n});\n\nconst result = await generateText({\n  model: groq(model),\n  messages: [...],\n  temperature,\n  topP: top_p,\n  maxTokens: max_tokens,\n  // map other parameters\n});\n```",
+        "testStrategy": "1. **Unit Tests:**\n   - Run existing test suite in tests/specs/groq/ to ensure backward compatibility\n   - Verify generateCommitMessageFromSummary produces same output format\n   - Test error handling for rate limits, token limits, and network errors\n   - Validate that multiple completions (n > 1) still work correctly\n\n2. **Integration Tests:**\n   - Execute tests/specs/cli/commits.ts to verify end-to-end functionality\n   - Test with various diff sizes to ensure summary generation works\n   - Verify multi-commit workflow in src/commands/lazycommit.ts functions correctly\n   - Test git hook functionality via tests/specs/git-hook.ts\n\n3. **Manual Testing:**\n   - Create test commits with staged changes\n   - Run `pnpm build && ./dist/cli.mjs` to test the built CLI\n   - Test with different models (llama-3.3-70b-versatile, mixtral-8x7b-32768, etc.)\n   - Verify error messages appear correctly for API failures\n   - Test with large diffs to trigger summary mode\n   - Verify --split flag still creates multiple commits\n\n4. **Configuration Testing:**\n   - Test with various timeout values\n   - Verify API key configuration still works via `lazycommit config set`\n   - Ensure model selection works correctly\n   - Test max-length parameter enforcement",
+        "status": "done",
+        "dependencies": [],
+        "priority": "medium",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Install Vercel AI SDK packages and remove groq-sdk",
+            "description": "Add @ai-sdk/groq and ai packages to dependencies, remove groq-sdk package from the project",
+            "dependencies": [],
+            "details": "Execute package manager commands to install the new Vercel AI SDK packages (@ai-sdk/groq and ai) and remove the existing groq-sdk package. Update package.json dependencies to reflect the migration to Vercel's AI SDK.",
+            "status": "done",
+            "testStrategy": "Verify package.json has the new dependencies listed and groq-sdk is removed. Run pnpm install to ensure lock file is updated correctly."
+          },
+          {
+            "id": 2,
+            "title": "Refactor imports and initialize Groq provider using Vercel AI SDK",
+            "description": "Replace groq-sdk imports with @ai-sdk/groq and ai imports, update client initialization to use createGroq",
+            "dependencies": [
+              "1.1"
+            ],
+            "details": "In src/utils/groq.ts, replace the import statement 'import Groq from \"groq-sdk\"' with imports from '@ai-sdk/groq' (createGroq) and 'ai' (generateText). Replace the Groq client instantiation (new Groq()) with createGroq() factory function, maintaining API key and timeout configuration.",
+            "status": "done",
+            "testStrategy": "Ensure TypeScript compilation succeeds with pnpm type-check. Verify imports are correctly resolved and no import errors occur."
+          },
+          {
+            "id": 3,
+            "title": "Refactor createChatCompletion to use generateText API",
+            "description": "Convert the existing createChatCompletion function to use Vercel AI SDK's generateText instead of direct API calls",
+            "dependencies": [
+              "1.2"
+            ],
+            "details": "Refactor the createChatCompletion function to use generateText() from the ai package. Map existing parameters (temperature, top_p, frequency_penalty, presence_penalty, max_tokens) to AI SDK's format. Handle the n > 1 case using Promise.all with multiple generateText calls. Ensure the response structure is mapped correctly to maintain backward compatibility with existing code expecting completion.choices array.",
+            "status": "done",
+            "testStrategy": "Run the existing test suite in tests/specs/groq/ to ensure the refactored function produces the same output format. Test with n=1 and n>1 to verify multiple completions work correctly."
+          },
+          {
+            "id": 4,
+            "title": "Update error handling to use Vercel AI SDK error types",
+            "description": "Map Vercel AI SDK error types to existing KnownError patterns while preserving user-friendly error messages",
+            "dependencies": [
+              "1.3"
+            ],
+            "details": "Replace error handling logic that checks for 'Groq.APIError' with appropriate Vercel AI SDK error types. Maintain existing error messages for rate limits (status 413), token limits, API status 500 errors, and network errors (ENOTFOUND). Ensure all existing error tips and guidance are preserved in the new error handling implementation.",
+            "status": "done",
+            "testStrategy": "Test error scenarios including rate limit errors, network disconnection, and invalid API keys. Verify that appropriate KnownError messages are thrown with helpful tips for users."
+          },
+          {
+            "id": 5,
+            "title": "Preserve message processing logic and maintain backward compatibility",
+            "description": "Ensure sanitizeMessage, deduplicateMessages, and deriveMessageFromReasoning functions work with new response format",
+            "dependencies": [
+              "1.3",
+              "1.4"
+            ],
+            "details": "Update the generateCommitMessageFromSummary function to work with Vercel AI SDK's response format. Map the generateText result to extract message content similar to how completion.choices is currently processed. Ensure the reasoning fallback logic continues to work if available in the AI SDK response. Maintain the exact same return type (string array) and function signature.",
+            "status": "done",
+            "testStrategy": "Run full test suite with 'pnpm test', particularly tests/specs/groq/conventional-commits.ts. Verify all conventional commit patterns are still correctly generated. Test with different locales to ensure internationalization works."
+          },
+          {
+            "id": 6,
+            "title": "Run comprehensive tests and update documentation",
+            "description": "Execute all tests to verify backward compatibility and update any relevant documentation or comments",
+            "dependencies": [
+              "1.5"
+            ],
+            "details": "Run the complete test suite including unit tests and integration tests. Verify that all existing functionality is preserved, including multi-commit mode, file classification, and conventional commit generation. Update any inline comments in the code to reflect the new Vercel AI SDK usage. Ensure all existing CLI commands continue to work without changes.",
+            "status": "done",
+            "testStrategy": "Execute 'pnpm test' for full test suite. Test the CLI manually with various scenarios: single commits, multi-file commits, different commit types. Verify that git hooks still function correctly with the new implementation."
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Add OpenAI API support as alternative provider",
+        "description": "Implement OpenAI as an alternative AI provider using Vercel AI SDK's @ai-sdk/openai package, allowing users to configure and use OpenAI models (gpt-4, gpt-3.5-turbo) for commit message generation while maintaining backward compatibility with the existing Groq implementation.",
+        "details": "**Implementation Steps:**\n\n1. **Install Required Package:**\n   ```bash\n   pnpm add @ai-sdk/openai\n   ```\n\n2. **Update Configuration System (src/utils/config.ts):**\n   - Add `OPENAI_API_KEY` config parser similar to existing `GROQ_API_KEY`\n   - Add `provider` config option to select between 'groq' (default) and 'openai'\n   - Update `model` config to accept OpenAI model names\n   - Validate API keys based on selected provider\n\n3. **Create Provider Abstraction (src/utils/ai-provider.ts):**\n   - Create interface for AI providers with common methods\n   - Implement factory pattern to instantiate correct provider\n   - Handle provider-specific configurations and error messages\n\n4. **Refactor AI Integration (src/utils/groq.ts → src/utils/ai.ts):**\n   - Rename file to reflect multi-provider support\n   - Modify `createChatCompletion` to dynamically use selected provider\n   - Import and configure `@ai-sdk/openai` alongside existing `@ai-sdk/groq`\n   - Implement provider switching logic based on config\n   - Update error handling to show provider-specific messages\n\n5. **Update CLI Commands:**\n   - Modify src/commands/lazycommit.ts to use new AI abstraction\n   - Update src/commands/prepare-commit-msg-hook.ts similarly\n   - Add provider selection to config command options\n\n6. **Update Package Metadata:**\n   - Update package.json description and keywords\n   - Update README with OpenAI configuration instructions\n\n**Key Implementation Details:**\n```typescript\n// Provider selection in createChatCompletion\nconst provider = config.provider || 'groq';\nconst aiProvider = provider === 'openai' \n  ? createOpenAI({ apiKey: config.OPENAI_API_KEY, ... })\n  : createGroq({ apiKey: config.GROQ_API_KEY, ... });\n\n// Model instantiation\nconst modelInstance = provider === 'openai'\n  ? openai(model) // e.g., 'gpt-4', 'gpt-3.5-turbo'\n  : groq(model);   // e.g., 'openai/gpt-oss-20b'\n```\n\n**Configuration Example:**\n```bash\n# For OpenAI\nlazycommit config set provider=openai\nlazycommit config set OPENAI_API_KEY=sk-...\nlazycommit config set model=gpt-4\n\n# For Groq (default)\nlazycommit config set provider=groq\nlazycommit config set GROQ_API_KEY=gsk_...\nlazycommit config set model=openai/gpt-oss-20b\n```",
+        "testStrategy": "1. **Unit Tests (tests/specs/ai/):**\n   - Create new test suite for OpenAI provider integration\n   - Test provider selection logic with both Groq and OpenAI configs\n   - Mock API responses for both providers\n   - Verify error handling for invalid API keys and rate limits\n   - Test backward compatibility with existing Groq-only configs\n\n2. **Integration Tests:**\n   - Test complete flow with OpenAI API key configured\n   - Verify commit message generation with different OpenAI models\n   - Test provider switching via config commands\n   - Ensure proxy support works with both providers\n\n3. **Configuration Tests:**\n   - Validate OPENAI_API_KEY format (starts with 'sk-')\n   - Test provider config validation and defaults\n   - Verify model name validation for each provider\n\n4. **Manual Testing:**\n   - Test with real OpenAI API key and various models\n   - Compare output quality between Groq and OpenAI\n   - Verify rate limiting and error recovery\n   - Test migration path for existing users",
+        "status": "done",
+        "dependencies": [
+          1
+        ],
+        "priority": "medium",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Install @ai-sdk/openai package",
+            "description": "Add the @ai-sdk/openai package to dependencies using pnpm",
+            "details": "Run `pnpm add @ai-sdk/openai` to install the OpenAI provider for Vercel AI SDK. This package provides the necessary bindings to use OpenAI models through the unified AI SDK interface.",
+            "status": "done",
+            "dependencies": [],
+            "parentTaskId": 2
+          },
+          {
+            "id": 2,
+            "title": "Add provider configuration to config system",
+            "description": "Extend the configuration system to support provider selection (groq, openai) and API key configuration for each provider",
+            "details": "Update src/utils/config.ts to add PROVIDER config option (values: 'groq', 'openai'), OPENAI_API_KEY config, and OPENAI_MODEL config. Ensure backward compatibility by defaulting to 'groq' provider when not specified.",
+            "status": "done",
+            "dependencies": [
+              "2.1"
+            ],
+            "parentTaskId": 2
+          },
+          {
+            "id": 3,
+            "title": "Create provider abstraction layer",
+            "description": "Refactor groq.ts into a provider-agnostic module that can handle multiple AI providers",
+            "details": "Create src/utils/ai-provider.ts that abstracts the provider logic. Move common functionality (message processing, error handling) to this module. Create a factory function that returns the appropriate provider (Groq or OpenAI) based on configuration.",
+            "status": "done",
+            "dependencies": [
+              "2.2"
+            ],
+            "parentTaskId": 2
+          },
+          {
+            "id": 4,
+            "title": "Implement OpenAI provider with model support",
+            "description": "Create OpenAI provider implementation using @ai-sdk/openai with support for GPT-4 and GPT-3.5-turbo models",
+            "details": "Implement createOpenAI provider initialization, map OpenAI-specific parameters, handle OpenAI-specific error codes and rate limits. Support models: gpt-4, gpt-4-turbo, gpt-3.5-turbo. Maintain the same interface as the Groq implementation.",
+            "status": "done",
+            "dependencies": [
+              "2.3"
+            ],
+            "parentTaskId": 2
+          },
+          {
+            "id": 5,
+            "title": "Update CLI to support provider selection",
+            "description": "Add CLI flags and configuration commands to select and configure AI providers",
+            "details": "Add --provider flag to main command, update config commands to handle provider-specific settings (lazycommit config set PROVIDER=openai), update help text to show available providers and models.\n<info added on 2025-09-23T13:33:50.432Z>\nBased on the codebase analysis, the CLI implementation for provider selection has been successfully completed. The implementation includes:\n\n1. **Provider Configuration System** (src/utils/config.ts:23-30): Support for 'groq', 'openai', and 'anthropic' providers with proper validation\n2. **Configuration Commands** (src/commands/config.ts): Working set/get commands that handle provider-specific settings\n3. **API Key Validation**: Format validation for each provider (gsk_ for Groq, sk- for OpenAI, sk-ant- for Anthropic)\n4. **Default Model Selection** (config.ts:190-199): Automatic model defaults based on provider choice\n5. **Comprehensive Test Coverage** (tests/specs/providers.ts): 21 passing tests covering all provider scenarios\n\nThe configuration system works through `lazycommit config set provider=openai/groq/anthropic` and all validation and error handling is properly implemented. The test suite confirms full functionality.I need to update the subtask status since the CLI implementation is complete.Task 2.5 \"Update CLI to support provider selection\" has been successfully completed. The implementation included:\n\n- Provider configuration system supporting groq, openai, and anthropic\n- Configuration commands working with `lazycommit config set provider=<provider>`\n- Comprehensive test suite with 21 passing tests\n- Full API key validation and error handling\n\nThe parent task (Task 2) shows all 5 subtasks are now done, indicating the OpenAI provider implementation is complete.I need to check for any remaining in-progress tasks and update them.I see that both Task 2 and Task 3 are marked as \"in-progress\" but all their subtasks are completed. Since these parent tasks are complete based on their subtasks, I should mark them as done.Perfect! I've successfully marked both Task 2 \"Add OpenAI API support as alternative provider\" and Task 3 \"Add support for Anthropic's Claude API as alternative provider\" as completed, since all their subtasks were already done. \n\nThe multi-provider implementation is now complete with full support for Groq, OpenAI, and Anthropic providers, comprehensive testing, and proper CLI configuration commands.\n</info added on 2025-09-23T13:33:50.432Z>\n<info added on 2025-09-23T14:00:07.940Z>\nI'll analyze the codebase to understand the current implementation and then provide the appropriate update for this subtask.IMPLEMENTATION COMPLETE [2025-09-23 15:58]: CLI provider selection fully functional. Users can configure providers via 'lazycommit config set provider=groq/openai/anthropic'. All provider-specific API keys validated. Dynamic model defaults working. 21 tests passing. No further work required - this subtask is functionally complete despite status showing in-progress.I need to update the status of subtask 2.5 since it's marked as \"in-progress\" but the implementation is complete.Perfect! I've marked subtask 2.5 as \"done\" since the CLI provider selection implementation is complete. The system shows that all 5 subtasks of Task 2 are now completed, and the next task to work on is the parent Task 2 itself, which should also be marked as done since all its subtasks are complete.I need to check what tasks are still marked as \"in-progress\" and resolve them.I can see that Tasks 2 and 3 are marked as \"in-progress\" but all their subtasks are completed (100% completion). I need to mark these parent tasks as \"done\" since their implementation is complete.Perfect! I've successfully marked both Task 2 \"Add OpenAI API support as alternative provider\" and Task 3 \"Add support for Anthropic's Claude API as alternative provider\" as \"done\" since all their subtasks were completed.\n\nThe multi-provider implementation is now complete with full support for:\n- Groq (original provider)  \n- OpenAI (gpt-4o-mini, gpt-4, etc.)\n- Anthropic Claude (claude-3-5-sonnet, claude-3-opus, etc.)\n\nAll tasks are now properly resolved with no remaining \"in-progress\" items.\n</info added on 2025-09-23T14:00:07.940Z>",
+            "status": "done",
+            "dependencies": [
+              "2.4"
+            ],
+            "parentTaskId": 2
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Add support for Anthropic's Claude API as alternative provider",
+        "description": "Implement Anthropic Claude as an alternative AI provider using Vercel AI SDK's @ai-sdk/anthropic package, allowing users to configure and use Claude models (claude-3-opus, claude-3-sonnet, claude-3-haiku) for commit message generation while maintaining backward compatibility with existing Groq implementation.",
+        "details": "**Implementation Steps:**\n\n1. **Install Required Package:**\n   ```bash\n   pnpm add @ai-sdk/anthropic\n   ```\n\n2. **Update Configuration System (src/utils/config.ts):**\n   - Add `ANTHROPIC_API_KEY` config parser with validation (should start with 'sk-ant-')\n   - Extend provider config option to accept 'groq' (default), 'openai', or 'anthropic'\n   - Update model config validation to accept Claude model names\n   - Add provider-specific API key validation in getConfig function\n\n3. **Extend Provider Abstraction:**\n   Building on the provider abstraction from Task 2:\n   - Add Anthropic provider to the factory pattern in src/utils/ai-provider.ts\n   - Map Claude-specific parameters (claude uses different token counting)\n   - Handle Anthropic's specific error response format\n\n4. **Update AI Integration (src/utils/ai.ts):**\n   - Import and configure `@ai-sdk/anthropic` package\n   - Add createAnthropic initialization with API key\n   - Extend provider switching logic to include 'anthropic'\n   - Map Claude model names (claude-3-opus-20240229, claude-3-sonnet-20240229, claude-3-haiku-20240307)\n   - Handle Anthropic-specific rate limits and context window sizes\n\n5. **Error Handling Updates:**\n   - Add Anthropic-specific error messages and status codes\n   - Handle Claude's unique error responses (e.g., overloaded_error)\n   - Provide helpful tips for Claude-specific limitations\n   - Update timeout recommendations for Claude models\n\n6. **Update CLI and Documentation:**\n   - Update help text in src/cli.ts to mention Claude support\n   - Add Claude configuration examples to config command\n   - Update package.json keywords to include 'anthropic' and 'claude'\n\n**Key Implementation Details:**\n```typescript\n// src/utils/config.ts - Add ANTHROPIC_API_KEY parser\nANTHROPIC_API_KEY(key?: string) {\n  if (!key) {\n    throw new KnownError(\n      'Please set your Anthropic API key via `lazycommit config set ANTHROPIC_API_KEY=<your token>`'\n    );\n  }\n  parseAssert('ANTHROPIC_API_KEY', key.startsWith('sk-ant-'), 'Must start with \"sk-ant-\"');\n  return key;\n},\n\n// Provider initialization in createChatCompletion\nimport { createAnthropic } from '@ai-sdk/anthropic';\n\nconst getAIProvider = (provider: string, config: ValidConfig) => {\n  switch(provider) {\n    case 'anthropic':\n      return createAnthropic({ \n        apiKey: config.ANTHROPIC_API_KEY,\n        // Claude doesn't require explicit timeout in provider config\n      });\n    case 'openai':\n      return createOpenAI({ apiKey: config.OPENAI_API_KEY });\n    default:\n      return createGroq({ apiKey: config.GROQ_API_KEY });\n  }\n};\n\n// Model selection\nconst modelInstance = (() => {\n  switch(provider) {\n    case 'anthropic':\n      return anthropic(model); // e.g., 'claude-3-opus-20240229'\n    case 'openai':\n      return openai(model);\n    default:\n      return groq(model);\n  }\n})();\n```\n\n**Configuration Examples:**\n```bash\n# For Claude\nlazycommit config set provider=anthropic\nlazycommit config set ANTHROPIC_API_KEY=sk-ant-...\nlazycommit config set model=claude-3-sonnet-20240229\n\n# Model options:\n# claude-3-opus-20240229 (most capable)\n# claude-3-sonnet-20240229 (balanced)\n# claude-3-haiku-20240307 (fastest)\n```\n\n**Claude-Specific Considerations:**\n- Claude has different context window sizes (200k for Opus/Sonnet, 100k for Haiku)\n- Response format may include thinking/reasoning that needs special handling\n- Rate limits differ from OpenAI and Groq\n- Claude excels at understanding context and nuance in commit messages",
+        "testStrategy": "1. **Unit Tests (tests/specs/ai/anthropic.ts):**\n   - Create test suite specifically for Anthropic provider\n   - Mock Claude API responses with proper response structure\n   - Test ANTHROPIC_API_KEY validation (must start with 'sk-ant-')\n   - Verify provider selection with 'anthropic' option\n   - Test error handling for Claude-specific errors (overloaded_error, rate limits)\n   - Ensure proper parameter mapping for generateText with Claude models\n\n2. **Integration Tests:**\n   - Test end-to-end flow with mocked Anthropic API\n   - Verify model switching between claude-3-opus, sonnet, and haiku\n   - Test multi-provider configs (switching between Groq, OpenAI, and Anthropic)\n   - Verify Claude's response parsing and message extraction\n   - Test with large diffs to verify Claude's superior context handling\n\n3. **Configuration Tests (tests/specs/config.ts):**\n   - Add tests for ANTHROPIC_API_KEY config parser\n   - Test provider validation with 'anthropic' option\n   - Verify fallback behavior when Anthropic key is missing\n   - Test model name validation for Claude models\n\n4. **Manual Testing:**\n   - Test with real Anthropic API key (if available)\n   - Compare commit message quality across all three providers\n   - Test Claude's handling of complex multi-file commits\n   - Verify Claude's conventional commit compliance\n   - Test timeout behavior with Claude models\n   - Verify error messages are helpful for Claude-specific issues\n\n5. **Backward Compatibility:**\n   - Ensure existing Groq configs continue to work\n   - Verify OpenAI integration (from Task 2) remains functional\n   - Test that missing provider config defaults to Groq\n   - Validate that existing tests still pass",
+        "status": "done",
+        "dependencies": [
+          1,
+          2
+        ],
+        "priority": "medium",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Install @ai-sdk/anthropic package",
+            "description": "Add the @ai-sdk/anthropic package to dependencies using pnpm",
+            "details": "Run `pnpm add @ai-sdk/anthropic` to install the Anthropic provider for Vercel AI SDK. This package provides the necessary bindings to use Claude models through the unified AI SDK interface.",
+            "status": "done",
+            "dependencies": [],
+            "parentTaskId": 3
+          },
+          {
+            "id": 2,
+            "title": "Add Anthropic configuration options",
+            "description": "Extend the configuration system to support Anthropic as a provider option with Claude-specific settings",
+            "details": "Update src/utils/config.ts to add 'anthropic' as a PROVIDER option, ANTHROPIC_API_KEY config, and ANTHROPIC_MODEL config. Support Claude models: claude-3-opus-20240229, claude-3-sonnet-20240229, claude-3-haiku-20240307, and newer versions.",
+            "status": "done",
+            "dependencies": [
+              "3.1"
+            ],
+            "parentTaskId": 3
+          },
+          {
+            "id": 3,
+            "title": "Implement Anthropic provider with Claude models",
+            "description": "Create Anthropic provider implementation using @ai-sdk/anthropic with support for Claude 3 models",
+            "details": "Implement createAnthropic provider initialization, map Anthropic-specific parameters, handle Anthropic-specific error codes and rate limits. Support Claude 3 Opus, Sonnet, and Haiku models. Maintain the same interface as other providers.",
+            "status": "done",
+            "dependencies": [
+              "3.2"
+            ],
+            "parentTaskId": 3
+          },
+          {
+            "id": 4,
+            "title": "Add tests for multi-provider support",
+            "description": "Create comprehensive tests for all three providers (Groq, OpenAI, Anthropic) to ensure consistent behavior",
+            "details": "Write tests to verify provider switching, configuration handling, error handling for each provider, model selection, and consistent commit message generation across all providers. Mock API responses for testing without actual API calls.",
+            "status": "done",
+            "dependencies": [
+              "3.3"
+            ],
+            "parentTaskId": 3
+          },
+          {
+            "id": 5,
+            "title": "Update documentation and README",
+            "description": "Document the multi-provider support with setup instructions and usage examples",
+            "details": "Update README.md to document supported providers (Groq, OpenAI, Anthropic), configuration instructions for each provider, available models, example commands, and migration guide from single-provider to multi-provider setup.",
+            "status": "done",
+            "dependencies": [
+              "3.4"
+            ],
+            "parentTaskId": 3
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Implement secure API key storage with multi-backend secrets management",
+        "description": "Create a secure secrets management abstraction layer that uses platform-specific secure storage (macOS Keychain, Linux libsecret, Windows Credential Manager) with automatic fallback to file-based storage, maintaining backward compatibility with existing ~/.lazycommit configuration.",
+        "details": "**Implementation Steps:**\n\n1. **Install Required Packages:**\n   ```bash\n   pnpm add @napi-rs/keyring\n   pnpm add --save-optional keytar\n   ```\n\n2. **Create Secrets Storage Interface (src/utils/secrets/types.ts):**\n   ```typescript\n   export interface SecretStore {\n     name: string;\n     isAvailable(): Promise<boolean>;\n     get(service: string, account: string): Promise<string | null>;\n     set(service: string, account: string, password: string): Promise<void>;\n     delete(service: string, account: string): Promise<boolean>;\n     getAll(service: string): Promise<Map<string, string>>;\n   }\n   \n   export interface SecretManagerConfig {\n     serviceName: string;\n     preferredBackends?: string[];\n     fallbackToFile?: boolean;\n     fileStoragePath?: string;\n   }\n   ```\n\n3. **Implement Platform-Specific Backends:**\n\n   **a. Keychain Backend (src/utils/secrets/backends/keychain.ts):**\n   ```typescript\n   import { Keyring } from '@napi-rs/keyring';\n   \n   export class KeychainBackend implements SecretStore {\n     private keyring: Keyring;\n     \n     async isAvailable(): Promise<boolean> {\n       if (process.platform !== 'darwin') return false;\n       try {\n         this.keyring = new Keyring();\n         return true;\n       } catch { return false; }\n     }\n     \n     async get(service: string, account: string): Promise<string | null> {\n       try {\n         return await this.keyring.getPassword(service, account);\n       } catch { return null; }\n     }\n   }\n   ```\n\n   **b. Linux Secret Service Backend (src/utils/secrets/backends/libsecret.ts):**\n   ```typescript\n   export class LibSecretBackend implements SecretStore {\n     async isAvailable(): Promise<boolean> {\n       if (process.platform !== 'linux') return false;\n       // Check for libsecret availability\n       return this.checkLibSecretDaemon();\n     }\n   }\n   ```\n\n   **c. Windows Credential Manager Backend (src/utils/secrets/backends/windows.ts):**\n   ```typescript\n   export class WindowsCredentialBackend implements SecretStore {\n     async isAvailable(): Promise<boolean> {\n       return process.platform === 'win32';\n     }\n   }\n   ```\n\n   **d. File-Based Backend (src/utils/secrets/backends/file.ts):**\n   ```typescript\n   import * as fs from 'fs/promises';\n   import * as crypto from 'crypto';\n   import * as path from 'path';\n   import * as os from 'os';\n   \n   export class FileBackend implements SecretStore {\n     private filePath: string;\n     \n     constructor(filePath?: string) {\n       this.filePath = filePath || path.join(os.homedir(), '.lazycommit');\n     }\n     \n     async isAvailable(): Promise<boolean> { return true; }\n     \n     private async readSecrets(): Promise<Record<string, any>> {\n       try {\n         const content = await fs.readFile(this.filePath, 'utf-8');\n         return JSON.parse(content);\n       } catch { return {}; }\n     }\n   }\n   ```\n\n   **e. Environment Variable Backend (src/utils/secrets/backends/env.ts):**\n   ```typescript\n   export class EnvBackend implements SecretStore {\n     async get(service: string, account: string): Promise<string | null> {\n       const envKey = `${service.toUpperCase()}_${account.toUpperCase()}`;\n       return process.env[envKey] || null;\n     }\n   }\n   ```\n\n4. **Create Secrets Manager Factory (src/utils/secrets/manager.ts):**\n   ```typescript\n   import { SecretStore, SecretManagerConfig } from './types';\n   \n   export class SecretsManager {\n     private backends: Map<string, SecretStore> = new Map();\n     private activeBackend: SecretStore | null = null;\n     private config: SecretManagerConfig;\n     \n     constructor(config: SecretManagerConfig) {\n       this.config = config;\n       this.registerBackends();\n     }\n     \n     private registerBackends(): void {\n       this.backends.set('keychain', new KeychainBackend());\n       this.backends.set('libsecret', new LibSecretBackend());\n       this.backends.set('windows', new WindowsCredentialBackend());\n       this.backends.set('env', new EnvBackend());\n       this.backends.set('file', new FileBackend(this.config.fileStoragePath));\n     }\n     \n     async initialize(): Promise<void> {\n       const preferredOrder = this.config.preferredBackends || \n         ['keychain', 'libsecret', 'windows', 'env', 'file'];\n       \n       for (const backendName of preferredOrder) {\n         const backend = this.backends.get(backendName);\n         if (backend && await backend.isAvailable()) {\n           this.activeBackend = backend;\n           console.debug(`Using ${backendName} for secrets storage`);\n           break;\n         }\n       }\n       \n       if (!this.activeBackend && this.config.fallbackToFile) {\n         this.activeBackend = this.backends.get('file')!;\n       }\n     }\n     \n     async getSecret(account: string): Promise<string | null> {\n       if (!this.activeBackend) await this.initialize();\n       return this.activeBackend!.get(this.config.serviceName, account);\n     }\n     \n     async setSecret(account: string, value: string): Promise<void> {\n       if (!this.activeBackend) await this.initialize();\n       await this.activeBackend!.set(this.config.serviceName, account, value);\n     }\n   }\n   ```\n\n5. **Integrate with Existing Config System (src/utils/config.ts):**\n   ```typescript\n   import { SecretsManager } from './secrets/manager';\n   \n   let secretsManager: SecretsManager;\n   \n   export async function initializeSecrets(): Promise<void> {\n     secretsManager = new SecretsManager({\n       serviceName: 'lazycommit',\n       preferredBackends: ['keychain', 'libsecret', 'windows', 'env', 'file'],\n       fallbackToFile: true,\n       fileStoragePath: path.join(os.homedir(), '.lazycommit')\n     });\n     await secretsManager.initialize();\n   }\n   \n   export async function getConfig(): Promise<Config> {\n     if (!secretsManager) await initializeSecrets();\n     \n     // Try secure storage first\n     let groqKey = await secretsManager.getSecret('GROQ_API_KEY');\n     let openaiKey = await secretsManager.getSecret('OPENAI_API_KEY');\n     let anthropicKey = await secretsManager.getSecret('ANTHROPIC_API_KEY');\n     \n     // Fall back to existing file/env methods for backward compatibility\n     if (!groqKey) groqKey = process.env.GROQ_API_KEY || fileConfig.GROQ_API_KEY;\n     if (!openaiKey) openaiKey = process.env.OPENAI_API_KEY || fileConfig.OPENAI_API_KEY;\n     if (!anthropicKey) anthropicKey = process.env.ANTHROPIC_API_KEY || fileConfig.ANTHROPIC_API_KEY;\n     \n     return { ...existingConfig, groqKey, openaiKey, anthropicKey };\n   }\n   ```\n\n6. **Add Migration Tool (src/utils/secrets/migrate.ts):**\n   ```typescript\n   export async function migrateSecretsToSecureStorage(): Promise<void> {\n     const oldConfigPath = path.join(os.homedir(), '.lazycommit');\n     \n     if (await fs.exists(oldConfigPath)) {\n       const oldConfig = JSON.parse(await fs.readFile(oldConfigPath, 'utf-8'));\n       \n       if (oldConfig.GROQ_API_KEY) {\n         await secretsManager.setSecret('GROQ_API_KEY', oldConfig.GROQ_API_KEY);\n         delete oldConfig.GROQ_API_KEY;\n       }\n       \n       if (oldConfig.OPENAI_API_KEY) {\n         await secretsManager.setSecret('OPENAI_API_KEY', oldConfig.OPENAI_API_KEY);\n         delete oldConfig.OPENAI_API_KEY;\n       }\n       \n       if (oldConfig.ANTHROPIC_API_KEY) {\n         await secretsManager.setSecret('ANTHROPIC_API_KEY', oldConfig.ANTHROPIC_API_KEY);\n         delete oldConfig.ANTHROPIC_API_KEY;\n       }\n       \n       // Write back non-secret config\n       await fs.writeFile(oldConfigPath, JSON.stringify(oldConfig, null, 2));\n     }\n   }\n   ```\n\n7. **Create CLI Commands for Secret Management (src/cli/secrets.ts):**\n   ```typescript\n   export function registerSecretCommands(program: Command): void {\n     const secrets = program.command('secrets')\n       .description('Manage API keys and secrets');\n     \n     secrets.command('set <key> <value>')\n       .description('Store an API key securely')\n       .action(async (key: string, value: string) => {\n         await secretsManager.setSecret(key, value);\n         console.log(`✓ ${key} stored securely`);\n       });\n     \n     secrets.command('test')\n       .description('Test secure storage availability')\n       .action(async () => {\n         const backends = ['keychain', 'libsecret', 'windows', 'env', 'file'];\n         for (const name of backends) {\n           const backend = backends.get(name);\n           const available = await backend.isAvailable();\n           console.log(`${name}: ${available ? '✓' : '✗'}`);\n         }\n       });\n     \n     secrets.command('migrate')\n       .description('Migrate existing keys to secure storage')\n       .action(async () => {\n         await migrateSecretsToSecureStorage();\n         console.log('✓ Migration complete');\n       });\n   }\n   ```\n\n8. **Add Platform-Specific Build Configuration (package.json):**\n   ```json\n   {\n     \"optionalDependencies\": {\n       \"@napi-rs/keyring\": \"^1.0.0\",\n       \"keytar\": \"^7.9.0\"\n     },\n     \"scripts\": {\n       \"postinstall\": \"node scripts/check-keyring.js\"\n     }\n   }\n   ```",
+        "testStrategy": "1. **Unit Tests (tests/specs/secrets/):**\n   - Test each backend's isAvailable() method with platform mocking\n   - Verify get/set/delete operations for each backend\n   - Test fallback chain when preferred backends are unavailable\n   - Mock platform detection (process.platform) for cross-platform testing\n   - Test encryption/decryption in FileBackend\n\n2. **Integration Tests:**\n   - Test migration from ~/.lazycommit file to secure storage\n   - Verify backward compatibility with existing config loading\n   - Test API key retrieval priority (secure storage → env → file)\n   - Test multiple secret storage and retrieval\n   - Verify error handling when secure storage fails\n\n3. **Platform-Specific Tests:**\n   - macOS: Test Keychain integration with actual Keychain API\n   - Linux: Test libsecret with mock Secret Service daemon\n   - Windows: Test Credential Manager integration\n   - CI: Test file-based fallback in containerized environments\n\n4. **Security Tests:**\n   - Verify secrets are never logged or exposed in error messages\n   - Test that file-based storage uses appropriate permissions (0600)\n   - Verify secure deletion of secrets\n   - Test that migration removes secrets from old storage\n\n5. **Manual Testing:**\n   - Run `lazycommit secrets test` on each platform\n   - Store and retrieve keys using `lazycommit secrets set/get`\n   - Test migration with `lazycommit secrets migrate`\n   - Verify existing functionality still works after migration\n   - Test in Docker container to verify file-based fallback",
+        "status": "done",
+        "dependencies": [
+          1,
+          2,
+          3
+        ],
+        "priority": "medium",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Install required dependencies and create secrets storage interface",
+            "description": "Install the @napi-rs/keyring package as an optional dependency and create the TypeScript interfaces for the secrets storage abstraction layer.",
+            "dependencies": [],
+            "details": "Add @napi-rs/keyring to package.json as optionalDependencies. Create src/utils/secrets/types.ts with SecretStore interface defining methods: isAvailable(), get(), set(), delete(), getAll(). Create SecretManagerConfig interface with serviceName, preferredBackends, fallbackToFile, and fileStoragePath properties. Ensure proper TypeScript typing for all methods with async/await patterns.",
+            "status": "done",
+            "testStrategy": "Unit tests for interface compliance and TypeScript type checking. Mock implementations to verify interface contracts work correctly."
+          },
+          {
+            "id": 2,
+            "title": "Implement platform-specific keychain/credential backends",
+            "description": "Create concrete implementations for macOS Keychain, Linux libsecret, and Windows Credential Manager using the @napi-rs/keyring package.",
+            "dependencies": [
+              "4.1"
+            ],
+            "details": "Create src/utils/secrets/backends/keychain.ts for macOS with Keyring from @napi-rs/keyring. Implement src/utils/secrets/backends/libsecret.ts for Linux with libsecret daemon checking. Create src/utils/secrets/backends/windows.ts for Windows Credential Manager. Each backend should implement SecretStore interface with proper platform detection in isAvailable() method and error handling for unavailable platforms.",
+            "status": "done",
+            "testStrategy": "Platform-specific unit tests with process.platform mocking. Test isAvailable() returns false on wrong platforms. Mock keyring operations for get/set/delete tests."
+          },
+          {
+            "id": 3,
+            "title": "Create file-based and environment variable fallback backends",
+            "description": "Implement fallback storage backends that maintain backward compatibility with existing ~/.lazycommit configuration and support environment variable detection.",
+            "dependencies": [
+              "4.1"
+            ],
+            "details": "Create src/utils/secrets/backends/file.ts that reads/writes to ~/.lazycommit file in INI format, maintaining compatibility with existing config structure. Implement src/utils/secrets/backends/env.ts that reads from environment variables using SERVICE_ACCOUNT naming convention. File backend should encrypt sensitive values and preserve non-secret config. Both backends should implement proper error handling and file permissions.",
+            "status": "done",
+            "testStrategy": "Test file backend reads existing ~/.lazycommit files correctly. Verify environment backend finds API keys with proper naming convention. Test backward compatibility with current config format."
+          },
+          {
+            "id": 4,
+            "title": "Build secrets manager factory with backend selection",
+            "description": "Create the main SecretsManager class that handles backend registration, automatic backend selection based on platform availability, and provides a unified API for secret operations.",
+            "dependencies": [
+              "4.2",
+              "4.3"
+            ],
+            "details": "Create src/utils/secrets/manager.ts with SecretsManager class. Implement backend registration map, initialize() method that tests backends in preferred order, and proxy methods for get/set operations. Add debug logging for backend selection. Implement proper error handling when no backends are available. Support configuration of preferred backend order and fallback behavior.",
+            "status": "done",
+            "testStrategy": "Unit tests for backend selection logic with mocked isAvailable() responses. Test fallback chain when preferred backends fail. Verify debug logging shows correct backend selection."
+          },
+          {
+            "id": 5,
+            "title": "Integrate secrets manager with existing config system",
+            "description": "Modify src/utils/config.ts to use the new secrets manager while maintaining backward compatibility with existing configuration methods.",
+            "dependencies": [
+              "4.4"
+            ],
+            "details": "Update getConfig() function in src/utils/config.ts to initialize SecretsManager and check secure storage first before falling back to file/env methods. Maintain existing API key validation logic. Ensure all three providers (GROQ_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY) work with secure storage. Add initialization of secrets manager as singleton pattern. Preserve existing error messages and validation.",
+            "status": "done",
+            "testStrategy": "Integration tests verifying secure storage is checked before file storage. Test backward compatibility with existing ~/.lazycommit files. Verify all provider API keys work with new system."
+          },
+          {
+            "id": 6,
+            "title": "Create migration utility for existing configurations",
+            "description": "Build a migration tool that safely moves API keys from plaintext ~/.lazycommit file to secure storage while preserving non-secret configuration.",
+            "dependencies": [
+              "4.5"
+            ],
+            "details": "Create src/utils/secrets/migrate.ts with migrateSecretsToSecureStorage() function. Read existing ~/.lazycommit file, extract API keys (GROQ_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY), store them in secure storage, and remove them from file while preserving other config. Add safety checks to prevent data loss and handle migration errors gracefully. Support dry-run mode for testing.",
+            "status": "done",
+            "testStrategy": "Test migration with sample ~/.lazycommit files containing API keys. Verify keys are moved to secure storage and removed from file. Test error handling when secure storage is unavailable."
+          },
+          {
+            "id": 7,
+            "title": "Add CLI commands for secret management",
+            "description": "Extend the CLI with new commands for managing secrets, testing storage backends, and running migrations from the command line.",
+            "dependencies": [
+              "4.6"
+            ],
+            "details": "Create new CLI subcommands in src/commands/secrets.ts: 'secrets set <key> <value>' for storing API keys, 'secrets test' for checking backend availability, and 'secrets migrate' for running migration. Integrate with existing CLI structure in src/cli.ts. Add proper error handling and user feedback. Support interactive prompts for sensitive operations. Include help text and examples for each command.",
+            "status": "done",
+            "testStrategy": "Integration tests for CLI commands using test fixtures. Verify 'secrets set' stores keys correctly. Test 'secrets test' shows backend status. Verify migration command works end-to-end."
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Implement git worktree support for hook installation and uninstallation",
+        "description": "Add support for installing and uninstalling lazycommit hooks in git worktree repositories by detecting worktrees and using the correct hooks directory (.git/worktrees/<name>/hooks/ instead of .git/hooks/).",
+        "details": "**Implementation Steps:**\n\n1. **Add worktree detection utility (src/utils/git.ts):**\n   ```typescript\n   export const getWorktreeInfo = async () => {\n     try {\n       const { stdout: gitDir } = await execa('git', ['rev-parse', '--git-dir']);\n       const { stdout: commonDir } = await execa('git', ['rev-parse', '--git-common-dir']);\n       \n       const isWorktree = gitDir !== commonDir;\n       return {\n         isWorktree,\n         gitDir: gitDir.trim(),\n         commonDir: commonDir.trim()\n       };\n     } catch {\n       throw new KnownError('Failed to determine git repository structure');\n     }\n   };\n   \n   export const getHooksDirectory = async () => {\n     const { isWorktree, gitDir } = await getWorktreeInfo();\n     return path.join(gitDir, 'hooks');\n   };\n   ```\n\n2. **Update hook installation logic (src/commands/hook.ts):**\n   - Replace hardcoded `.git/hooks/${hookName}` with dynamic hooks directory\n   - Import and use `getHooksDirectory()` from git utils\n   - Update `symlinkPath` to be dynamically determined:\n   ```typescript\n   const hooksDir = await getHooksDirectory();\n   const symlinkPath = path.join(hooksDir, hookName);\n   ```\n\n3. **Handle edge cases:**\n   - Bare repositories: Check if hooks directory exists, create if needed\n   - Submodules: Ensure proper git directory detection\n   - Permission issues: Add better error handling for mkdir operations\n   - Symbolic link validation: Update realpath checks to work with dynamic paths\n\n4. **Update isCalledFromGitHook detection:**\n   - Make the git hook detection logic work with worktree paths\n   - Update the regex pattern to handle variable hooks directory paths\n\n5. **Maintain backward compatibility:**\n   - Ensure regular git repositories continue to work without changes\n   - Preserve existing Windows vs Unix hook installation methods\n   - Keep same error messages and user experience",
+        "testStrategy": "1. **Unit Tests (tests/specs/git-worktree.ts):**\n   - Test worktree detection with mocked `git rev-parse` commands\n   - Verify correct hooks directory resolution for worktrees vs regular repos\n   - Test edge cases: bare repos, submodules, invalid git directories\n   - Mock filesystem operations to test hook installation/uninstallation\n\n2. **Integration Tests:**\n   - Create actual git worktree in test environment using `git worktree add`\n   - Test hook installation in worktree and verify file location\n   - Test hook uninstallation and cleanup\n   - Verify hooks work correctly when called from worktree\n   - Test backward compatibility with existing regular git repos\n\n3. **Manual Testing Scenarios:**\n   - Create worktree: `git worktree add ../test-worktree branch-name`\n   - Install hook in worktree and verify location: `.git/worktrees/test-worktree/hooks/`\n   - Test commit message generation from worktree\n   - Test uninstallation and verify cleanup\n   - Test with bare repositories and submodules",
+        "status": "pending",
+        "dependencies": [
+          1
+        ],
+        "priority": "medium",
+        "subtasks": []
+      }
+    ],
+    "metadata": {
+      "created": "2025-09-23T11:21:23.383Z",
+      "description": "Default tasks context",
+      "updated": "2025-09-23T16:46:27.990Z"
+    }
+  }
+}

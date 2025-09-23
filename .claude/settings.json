@@ -1,0 +1,37 @@
+{
+  "version": "1.0.0",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "^Bash$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "claude-hooks run package-manager-enforcement"
+          }
+        ]
+      },
+      {
+        "matcher": "^Bash$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "claude-hooks run taskmaster-integration 'pnpm run type-check' 'pnpm run test'"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "claude-hooks run taskmaster-integration 'pnpm run type-check' 'pnpm run test'"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": []
+  }
+}
