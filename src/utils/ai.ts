@@ -1,3 +1,9 @@
+// Disable AI SDK warnings in production
+if (process.env.NODE_ENV !== 'development') {
+	// @ts-ignore - global variable from AI SDK
+	globalThis.AI_SDK_LOG_WARNINGS = false;
+}
+
 import { createGroq } from '@ai-sdk/groq';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';

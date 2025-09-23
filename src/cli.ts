@@ -1,3 +1,7 @@
+// Disable AI SDK warnings in production builds
+// @ts-ignore - global variable from AI SDK
+globalThis.AI_SDK_LOG_WARNINGS = false;
+
 import { cli } from 'cleye';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
