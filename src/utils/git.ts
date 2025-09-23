@@ -37,6 +37,19 @@ export const getWorktreeInfo = async () => {
 };
 
 export const getHooksDirectory = async () => {
+	// First check if there's a custom hooks path configured
+	try {
+		const { stdout: customPath } = await execa('git', ['config', '--get', 'core.hooksPath']);
+		if (customPath.trim()) {
+			// Custom hooks path is configured (e.g., .husky)
+			const { stdout: rootDir } = await execa('git', ['rev-parse', '--show-toplevel']);
+			return path.resolve(rootDir, customPath.trim());
+		}
+	} catch {
+		// No custom hooks path configured, use default
+	}
+
+	// Default behavior: use git directory's hooks folder
 	const { gitDir } = await getWorktreeInfo();
 	// For worktrees, hooks are in the worktree's git directory
 	// For regular repos, this will be .git/hooks

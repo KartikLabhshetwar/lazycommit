@@ -32,8 +32,15 @@ export default command(
 			await assertGitRepo();
 			const { installUninstall: mode } = argv._;
 
-			// Get the correct hooks directory (handles worktrees)
+			// Get the correct hooks directory (handles worktrees and custom paths)
 			const hooksDir = await getHooksDirectory();
+
+			// Check if using Husky or other hook managers
+			if (hooksDir.includes('.husky')) {
+				console.log(`${green('ℹ')} Detected Husky hooks directory: ${hooksDir}`);
+				console.log(`${green('ℹ')} Installing lazycommit hook alongside Husky hooks`);
+			}
+
 			const absoltueSymlinkPath = path.join(hooksDir, hookName);
 			const hookExists = await fileExists(absoltueSymlinkPath);
 			if (mode === 'install') {
@@ -60,7 +67,12 @@ export default command(
 					await fs.symlink(hookPath, absoltueSymlinkPath, 'file');
 					await fs.chmod(absoltueSymlinkPath, 0o755);
 				}
-				console.log(`${green('✔')} Hook installed`);
+				console.log(`${green('✔')} Hook installed to ${absoltueSymlinkPath}`);
+
+				// Additional info for Husky users
+				if (hooksDir.includes('.husky')) {
+					console.log(`${green('ℹ')} Note: This hook will run alongside your existing Husky hooks`);
+				}
 				return;
 			}
 
