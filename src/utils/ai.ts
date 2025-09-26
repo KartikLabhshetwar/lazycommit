@@ -13,6 +13,17 @@ import { KnownError } from './error.js';
 import type { CommitType, ValidConfig } from './config.js';
 import { generatePrompt } from './prompt.js';
 
+// Type guard for errors with code property
+interface ErrorWithCode {
+	code?: string;
+	name?: string;
+	message?: string;
+}
+
+function isErrorWithCode(error: unknown): error is ErrorWithCode {
+	return typeof error === 'object' && error !== null && ('code' in error || 'name' in error);
+}
+
 const sanitizeMessage = (message: string) =>
 	message
 		.trim()
@@ -153,23 +164,24 @@ const createChatCompletion = async (
 				],
 			};
 		}
-	} catch (error: any) {
-		const errorAsAny = error as any;
-		if (errorAsAny.code === 'ENOTFOUND') {
-			const providerName = provider === 'openai' ? 'OpenAI' : provider === 'anthropic' ? 'Anthropic' : 'Groq';
-			throw new KnownError(
-				`Error connecting to ${providerName} API.\nCause: ${errorAsAny.message}\n\nPossible reasons:\n- Check your internet connection\n- If you're behind a VPN, proxy or firewall, make sure it's configured correctly`
-			);
+	} catch (error) {
+		if (isErrorWithCode(error)) {
+			if (error.code === 'ENOTFOUND') {
+				const providerName = provider === 'openai' ? 'OpenAI' : provider === 'anthropic' ? 'Anthropic' : 'Groq';
+				throw new KnownError(
+					`Error connecting to ${providerName} API.\nCause: ${error.message}\n\nPossible reasons:\n- Check your internet connection\n- If you're behind a VPN, proxy or firewall, make sure it's configured correctly`
+				);
+			}
+
+			if (error.code === 'ECONNREFUSED') {
+				const providerName = provider === 'openai' ? 'OpenAI' : provider === 'anthropic' ? 'Anthropic' : 'Groq';
+				throw new KnownError(
+					`Error connecting to ${providerName} API.\nCause: ${error.message}\n\nPossible reasons:\n- Check your proxy settings\n- Ensure proxy server is running and accessible\n- Verify proxy URL is correct in your config`
+				);
+			}
 		}
 
-		if (errorAsAny.code === 'ECONNREFUSED') {
-			const providerName = provider === 'openai' ? 'OpenAI' : provider === 'anthropic' ? 'Anthropic' : 'Groq';
-			throw new KnownError(
-				`Error connecting to ${providerName} API.\nCause: ${errorAsAny.message}\n\nPossible reasons:\n- Check your proxy settings\n- Ensure proxy server is running and accessible\n- Verify proxy URL is correct in your config`
-			);
-		}
-
-		throw errorAsAny;
+		throw error;
 	}
 };
 
@@ -208,12 +220,11 @@ export const generateCommitMessage = async (
 
 		return deduplicateMessages(messages);
 	} catch (error) {
-		const errorAsAny = error as any;
-		if (errorAsAny.name === 'AbortError' || errorAsAny.code === 'UND_ERR_ABORTED') {
+		if (isErrorWithCode(error) && (error.name === 'AbortError' || error.code === 'UND_ERR_ABORTED')) {
 			throw new KnownError('Request timed out. Try increasing the timeout in your config (`lazycommit config set timeout=<timeout in ms>`)');
 		}
 
-		throw errorAsAny;
+		throw error;
 	}
 };
 
@@ -252,11 +263,10 @@ export const generateCommitMessageFromSummary = async (
 
 		return deduplicateMessages(messages);
 	} catch (error) {
-		const errorAsAny = error as any;
-		if (errorAsAny.name === 'AbortError' || errorAsAny.code === 'UND_ERR_ABORTED') {
+		if (isErrorWithCode(error) && (error.name === 'AbortError' || error.code === 'UND_ERR_ABORTED')) {
 			throw new KnownError('Request timed out. Try increasing the timeout in your config (`lazycommit config set timeout=<timeout in ms>`)');
 		}
 
-		throw errorAsAny;
+		throw error;
 	}
 };

@@ -331,12 +331,56 @@
         ],
         "priority": "medium",
         "subtasks": []
+      },
+      {
+        "id": 7,
+        "title": "Fix type assertion in CLI secrets command handler",
+        "description": "Replace 'as any' type assertion in src/cli.ts:78 where secretsCommand is called with proper typing for the subcommand parameter",
+        "details": "The subcommand parameter in secretsCommand(subcommand as any, args) should be properly typed. Need to examine the secretsCommand function signature and create a proper type for valid subcommands instead of using 'as any'.",
+        "testStrategy": "",
+        "status": "done",
+        "dependencies": [],
+        "priority": "medium",
+        "subtasks": []
+      },
+      {
+        "id": 8,
+        "title": "Fix type assertion in config key assignment",
+        "description": "Replace 'as any' type assertion in src/utils/config.ts:298 where config value is assigned with proper typing",
+        "details": "The line config[key as ConfigKeys] = parsed as any; uses 'as any' to bypass type checking. Need to properly type the parsed value based on the ConfigKeys type to ensure type safety.",
+        "testStrategy": "",
+        "status": "done",
+        "dependencies": [],
+        "priority": "medium",
+        "subtasks": []
+      },
+      {
+        "id": 9,
+        "title": "Fix type assertions in AI error handling",
+        "description": "Replace three 'as any' type assertions in src/utils/ai.ts (lines 157, 211, 255) used for error handling with proper error typing",
+        "details": "Multiple instances of const errorAsAny = error as any; are used to access error properties like code and name. Should properly type the error objects or create a type guard to safely access these properties without using 'as any'.",
+        "testStrategy": "",
+        "status": "done",
+        "dependencies": [],
+        "priority": "medium",
+        "subtasks": []
+      },
+      {
+        "id": 10,
+        "title": "Fix type assertions in Groq result handling",
+        "description": "Replace 'as any' type assertions in src/utils/groq.ts (lines 66, 80, 93) used for accessing reasoning property and messages parameter",
+        "details": "Three instances: (result as any).reasoning is used twice to access a reasoning property that might not be typed correctly, and messages as any is used when passing messages to generateText. Need to properly type the result object and messages array to avoid these assertions.",
+        "testStrategy": "",
+        "status": "done",
+        "dependencies": [],
+        "priority": "medium",
+        "subtasks": []
       }
     ],
     "metadata": {
       "created": "2025-09-23T11:21:23.383Z",
       "description": "Default tasks context",
-      "updated": "2025-09-23T17:31:46.998Z"
+      "updated": "2025-09-26T08:02:42.294Z"
     }
   }
 }

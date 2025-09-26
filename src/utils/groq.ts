@@ -1,9 +1,15 @@
 import { createGroq } from '@ai-sdk/groq';
-import { generateText } from 'ai';
+import { generateText, ToolSet, type GenerateTextResult } from 'ai';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { KnownError } from './error.js';
 import type { CommitType } from './config.js';
 import { generatePrompt } from './prompt.js';
+
+/** Helper to safely access reasoning property if it exists */
+function getReasoningFromResult(result: GenerateTextResult<ToolSet, never>): string {
+	const resultWithReasoning = result as GenerateTextResult<ToolSet, never> & { reasoning?: string };
+	return resultWithReasoning.reasoning || '';
+}
 
 const createChatCompletion = async (
 	apiKey: string,
@@ -63,7 +69,7 @@ const createChatCompletion = async (
 						choices: [{
 							message: {
 								content: result.text,
-								reasoning: (result as any).reasoning || '',
+								reasoning: getReasoningFromResult(result),
 							}
 						}]
 					};
@@ -77,7 +83,7 @@ const createChatCompletion = async (
 
 		const result = await generateText({
 			model: groq(model),
-			messages: messages as any,
+			messages,
 			temperature,
 			topP: top_p,
 			frequencyPenalty: frequency_penalty,
@@ -90,7 +96,7 @@ const createChatCompletion = async (
 			choices: [{
 				message: {
 					content: result.text,
-					reasoning: (result as any).reasoning || '',
+					reasoning: getReasoningFromResult(result),
 				}
 			}]
 		};

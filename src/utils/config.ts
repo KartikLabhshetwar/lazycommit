@@ -295,7 +295,7 @@ export const setConfigs = async (keyValues: [key: string, value: string][]) => {
 			}
 		}
 
-		config[key as ConfigKeys] = parsed as any;
+		config[key as ConfigKeys] = parsed?.toString();
 	}
 
 	await fs.writeFile(configPath, ini.stringify(config), 'utf8');
