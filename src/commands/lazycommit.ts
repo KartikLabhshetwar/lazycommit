@@ -20,6 +20,7 @@ import { getConfig } from '../utils/config.js';
 import { generateCommitMessageFromSummary } from '../utils/groq.js';
 import { generatePrompt } from '../utils/prompt.js';
 import { KnownError, handleCliError } from '../utils/error.js';
+import { renderTitle } from '../utils/render-title.js';
 
 
 // Build lightweight per-file diff snippets to give semantic context without huge payloads
@@ -112,19 +113,6 @@ WRONG FORMAT (do not use):
 Return only the commit message line, no explanations.`;
 };
 
-
-
-const ASCII_LOGO = `╔──────────────────────────────────────────────────────────────────────────────────────╗
-│                                                                                      │
-│ ██╗      █████╗ ███████╗██╗   ██╗ ██████╗ ██████╗ ███╗   ███╗███╗   ███╗██╗████████╗ │
-│ ██║     ██╔══██╗╚══███╔╝╚██╗ ██╔╝██╔════╝██╔═══██╗████╗ ████║████╗ ████║██║╚══██╔══╝ │
-│ ██║     ███████║  ███╔╝  ╚████╔╝ ██║     ██║   ██║██╔████╔██║██╔████╔██║██║   ██║    │
-│ ██║     ██╔══██║ ███╔╝    ╚██╔╝  ██║     ██║   ██║██║╚██╔╝██║██║╚██╔╝██║██║   ██║    │
-│ ███████╗██║  ██║███████╗   ██║   ╚██████╗╚██████╔╝██║ ╚═╝ ██║██║ ╚═╝ ██║██║   ██║    │
-│ ╚══════╝╚═╝  ╚═╝╚══════╝   ╚═╝    ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝     ╚═╝╚═╝   ╚═╝    │
-│                                                                                      │
-╚──────────────────────────────────────────────────────────────────────────────────────╝`;
-
 export default async (
 	generate: number | undefined,
 	excludeFiles: string[],
@@ -134,7 +122,7 @@ export default async (
 	rawArgv: string[]
 ) =>
 	(async () => {
-		console.log(ASCII_LOGO);
+		renderTitle();
 		console.log();
 		intro(bgCyan(black(' lazycommit ')));
 		await assertGitRepo();
