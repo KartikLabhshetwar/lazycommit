@@ -3,90 +3,766 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>lazycommit</title>
+<title>lazycommit — AI-powered git commit messages</title>
+<meta name="description" content="lazycommit — AI-powered git commit messages using Groq. Never write a commit message again.">
+<meta name="theme-color" content="#0a0a0a">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-<meta name="description" content="lazycommit — AI-powered git commit messages using Groq. Never write a commit message again.">
-<meta name="theme-color" content="#24292f">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  body { font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; padding: 24px; color: #222; }
-  .wrap { max-width: 720px; margin: 0 auto; }
-  h1 { margin: 12px 0 8px; font-size: 28px; }
-  p { margin: 8px 0; }
-  .hero { text-align: center; }
-  .hero img { width: 100%; max-width: 720px; border-radius: 8px; }
-  .star { display: inline-flex; align-items: center; gap: 8px; margin: 16px 0; padding: 10px 14px; border-radius: 6px; background: #24292f; color: #fff; text-decoration: none; font-weight: 600; }
-  .count { background: rgba(255,255,255,.15); padding: 2px 8px; border-radius: 999px; font-size: 14px; }
-  pre { background: #f6f8fa; padding: 12px; border-radius: 8px; overflow: auto; position: relative; }
-  code { font-family: Inter, SFMono-Regular, Menlo, Consolas, monospace; }
-  .section { margin-top: 24px; }
-  .muted { color: #6a737d; font-size: 14px; }
-  .version { display: inline-block; margin-left: 8px; font-size: 14px; color: #6a737d; }
-  .copy { position: absolute; top: 8px; right: 8px; appearance: none; border: 1px solid #d0d7de; background: #fff; color: #24292f; border-radius: 4px; padding: 4px 8px; font-weight: 600; font-size: 12px; cursor: pointer; opacity: 0.8; }
-  .copy:hover { opacity: 1; background: #f6f8fa; }
-  .chart { position: relative; height: 280px; }
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  :root {
+    --bg: #0a0a0a;
+    --surface: #1a1a1a;
+    --border: #2a2a2a;
+    --text: #e5e5e5;
+    --text-muted: #a0a0a0;
+    --accent: #6366f1;
+    --accent-hover: #818cf8;
+    --success: #22c55e;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+    padding: 0;
+  }
+
+  /* Navbar */
+  .navbar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(10, 10, 10, 0.8);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 0;
+  }
+
+  .nav-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .nav-brand {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text);
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .nav-links {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+
+  .nav-link {
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 15px;
+    font-weight: 500;
+    transition: color 0.2s ease;
+  }
+
+  .nav-link:hover {
+    color: var(--text);
+  }
+
+  .nav-link.primary {
+    color: var(--accent);
+  }
+
+  .nav-link.primary:hover {
+    color: var(--accent-hover);
+  }
+
+  /* Container */
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  /* Hero Section */
+  .hero {
+    text-align: center;
+    padding: 120px 0 80px;
+    margin-bottom: 80px;
+  }
+
+  .hero > a {
+    margin: 0 auto 32px;
+    display: inline-block;
+  }
+
+  .hero-logo {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 32px;
+    background: var(--surface);
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 40px;
+    border: 1px solid var(--border);
+  }
+
+  .hero h1 {
+    font-size: 64px;
+    font-weight: 700;
+    margin-bottom: 20px;
+    background: linear-gradient(135deg, #fff 0%, #a0a0a0 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+  }
+
+  .hero .version {
+    font-size: 18px;
+    color: var(--text-muted);
+    font-weight: 400;
+    margin-left: 12px;
+  }
+
+  .hero p {
+    font-size: 22px;
+    color: var(--text-muted);
+    margin-bottom: 40px;
+    max-width: 680px;
+    margin-left: auto;
+    margin-right: auto;
+    line-height: 1.6;
+  }
+
+  .cta-group {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 28px;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 16px;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: white;
+  }
+
+  .btn-primary:hover {
+    background: var(--accent-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(99, 102, 241, 0.3);
+  }
+
+  .btn-secondary {
+    background: var(--surface);
+    color: var(--text);
+    border-color: var(--border);
+  }
+
+  .btn-secondary:hover {
+    background: #252525;
+    border-color: #3a3a3a;
+    transform: translateY(-2px);
+  }
+
+  .stars {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    font-size: 14px;
+  }
+
+  /* Stats Section */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 24px;
+    margin: -40px auto 80px;
+    max-width: 800px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+    text-align: center;
+    transition: all 0.3s ease;
+  }
+
+  .stat-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-4px);
+    box-shadow: 0 12px 32px rgba(99, 102, 241, 0.1);
+  }
+
+  .stat-value {
+    font-size: 48px;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 8px;
+    line-height: 1;
+  }
+
+  .stat-label {
+    font-size: 16px;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+
+  .stat-value.loading {
+    font-size: 32px;
+    color: var(--text-muted);
+  }
+
+  /* Features Section */
+  .features {
+    padding: 80px 0;
+    margin-bottom: 80px;
+  }
+
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 24px;
+    margin-top: 48px;
+  }
+
+  .feature-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+    transition: all 0.3s ease;
+  }
+
+  .feature-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-4px);
+    box-shadow: 0 12px 32px rgba(99, 102, 241, 0.1);
+  }
+
+  .feature-icon {
+    width: 48px;
+    height: 48px;
+    background: rgba(99, 102, 241, 0.1);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    margin-bottom: 20px;
+  }
+
+  .feature-card h3 {
+    font-size: 20px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: var(--text);
+  }
+
+  .feature-card p {
+    font-size: 15px;
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
+
+  /* Section */
+  .section {
+    margin-bottom: 80px;
+  }
+
+  /* Installation and Quick Start sections - narrower width */
+  #installation,
+  #docs {
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .section-title {
+    font-size: 36px;
+    font-weight: 700;
+    margin-bottom: 32px;
+    color: var(--text);
+    text-align: center;
+  }
+
+  .section-subtitle {
+    font-size: 20px;
+    color: var(--text-muted);
+    text-align: center;
+    margin-bottom: 48px;
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  /* Code Blocks */
+  .code-block {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+
+  .code-block pre {
+    padding: 24px;
+    overflow-x: auto;
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--text);
+    margin: 0;
+    background: transparent;
+  }
+
+  .code-block code {
+    font-family: inherit;
+  }
+
+  .copy-btn {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .code-block:hover .copy-btn {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  .copy-btn:hover {
+    background: var(--surface);
+    border-color: #3a3a3a;
+  }
+
+  .copy-btn.copied {
+    background: var(--success);
+    border-color: var(--success);
+    color: white;
+  }
+
+  /* Info Text */
+  .info-text {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin-top: 8px;
+    text-align: center;
+  }
+
+  .info-text code {
+    background: var(--surface);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 13px;
+    color: var(--accent);
+    font-family: 'SF Mono', monospace;
+  }
+
+  /* Chart */
+  .chart-container {
+    position: relative;
+    height: 300px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .nav-links {
+      gap: 16px;
+    }
+
+    .nav-link {
+      font-size: 14px;
+    }
+
+    .hero {
+      padding: 80px 0 60px;
+    }
+
+    .hero h1 {
+      font-size: 42px;
+    }
+
+    .hero p {
+      font-size: 18px;
+    }
+
+    .stats {
+      grid-template-columns: 1fr;
+      margin: -20px auto 60px;
+    }
+
+    .stat-card {
+      padding: 24px;
+    }
+
+    .stat-value {
+      font-size: 40px;
+    }
+
+    .section-title {
+      font-size: 28px;
+    }
+
+    .section-subtitle {
+      font-size: 18px;
+    }
+
+    .features-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .code-block pre {
+      font-size: 13px;
+      padding: 20px;
+    }
+
+    .copy-btn {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    .cta-group {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .btn {
+      justify-content: center;
+    }
+  }
+
+  /* Animations */
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .section {
+    animation: fadeIn 0.6s ease-out;
+  }
+
+  .feature-card {
+    animation: fadeIn 0.6s ease-out;
+  }
+
+  .feature-card:nth-child(1) { animation-delay: 0.1s; }
+  .feature-card:nth-child(2) { animation-delay: 0.2s; }
+  .feature-card:nth-child(3) { animation-delay: 0.3s; }
+  .feature-card:nth-child(4) { animation-delay: 0.4s; }
+  .feature-card:nth-child(5) { animation-delay: 0.5s; }
+  .feature-card:nth-child(6) { animation-delay: 0.6s; }
 </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="hero">
-      <a href="https://peerlist.io/code_kartik/project/lazycommit" ><img width="1800" height="400" alt="unnamed" src="https://github.com/user-attachments/assets/875a0d7b-445b-4adc-af4f-d711af5eb5f4" /></a>
-      <img alt="lazycommit" src="https://github.com/user-attachments/assets/ee0419ef-2461-4b45-8509-973f3bb0f55c">
-      <h1>lazycommit <span id="version" class="version"></span></h1>
-      <p>AI-powered git commit messages using Groq.</p>
-      <a class="star" href="https://github.com/KartikLabhshetwar/lazycommit" target="_blank" rel="noreferrer noopener">
-        ⭐ Star this repo <span id="stars" class="count">…</span>
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="nav-container">
+      <a href="#" class="nav-brand">
+        <span>lazycommit</span>
       </a>
-    </div>
-
-    <div class="section">
-      <h2>Install</h2>
-      <pre><code id="npm-cmd">npm install -g lazycommitt</code><button class="copy" data-target="npm-cmd" aria-label="Copy npm install command">Copy</button></pre>
-      <h3>Homebrew</h3>
-      <pre><code id="brew-cmd">brew install lazycommit</code><button class="copy" data-target="brew-cmd" aria-label="Copy brew install command">Copy</button></pre>
-      <p class="muted">If this fails on your machine, use tap first: <code>brew tap kartiklabhshetwar/lazycommit</code> then <code>brew install lazycommit</code>.</p>
-    </div>
-
-    <div class="section">
-      <h2>Quick start</h2>
-      <pre><code># set api key
-lazycommit config set GROQ_API_KEY=your_api_key
-
-# stage files
-git add .
-
-# generate and commit
-lazycommit</code></pre>
-    </div>
-    
-    <div class="section">
-      <h2>Downloads</h2>
-      <div class="chart">
-        <canvas id="downloads-chart" aria-label="Daily npm downloads for lazycommitt" role="img"></canvas>
+      <div class="nav-links">
+        <a href="#features" class="nav-link">Features</a>
+        <a href="#installation" class="nav-link">Install</a>
+        <a href="#docs" class="nav-link">Docs</a>
+        <a href="https://github.com/KartikLabhshetwar/lazycommit" class="nav-link primary" target="_blank" rel="noreferrer noopener">GitHub</a>
       </div>
     </div>
+  </nav>
+
+  <div class="container">
+    <!-- Hero Section -->
+    <section class="hero">
+      <a href="https://peerlist.io/code_kartik/project/lazycommit" target="_blank" rel="noreferrer">
+        <img
+          src="https://dqy38fnwh4fqs.cloudfront.net/website/project-spotlight/project-week-rank-one-dark.svg"
+          alt="LazyCommit"
+          style="width: auto; height: 64px;"
+        />
+      </a>
+      <h1>lazycommit<span id="version" class="version"></span></h1>
+      <p>AI-powered git commit messages using Groq.<br>Never write a commit message again.</p>
+      <div class="cta-group">
+        <a href="https://github.com/KartikLabhshetwar/lazycommit" class="btn btn-primary" target="_blank" rel="noreferrer noopener">
+          <span>Star on GitHub</span>
+          <span class="stars" id="stars">…</span>
+        </a>
+        <a href="#installation" class="btn btn-secondary">Get Started</a>
+      </div>
+    </section>
+
+    <!-- Stats Section -->
+    <section class="stats">
+      <div class="stat-card">
+        <div class="stat-value loading" id="total-stars">…</div>
+        <div class="stat-label">GitHub Stars</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value loading" id="total-downloads">…</div>
+        <div class="stat-label">Total Downloads</div>
+      </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features" id="features">
+      <h2 class="section-title">Why lazycommit?</h2>
+      <p class="section-subtitle">Powerful features that make commit messages effortless</p>
+      
+      <div class="features-grid">
+        <div class="feature-card">
+          <h3>Lightning Fast</h3>
+          <p>Powered by Groq's ultra-fast inference API. Get commit messages in seconds, not minutes.</p>
+        </div>
+
+        <div class="feature-card">
+          <h3>AI-Powered</h3>
+          <p>Uses advanced AI models to understand your code changes and generate accurate, meaningful commit messages.</p>
+        </div>
+
+        <div class="feature-card">
+          <h3>Conventional Commits</h3>
+          <p>Generate commit messages that follow the Conventional Commits specification with a simple flag.</p>
+        </div>
+
+        <div class="feature-card">
+          <h3>Git Hooks</h3>
+          <p>Seamlessly integrate with Git's prepare-commit-msg hook for automatic message generation.</p>
+        </div>
+
+        <div class="feature-card">
+          <h3>Multiple Options</h3>
+          <p>Generate multiple commit message suggestions and choose the one that best fits your changes.</p>
+        </div>
+
+        <div class="feature-card">
+          <h3>Smart Analysis</h3>
+          <p>Intelligently handles large diffs with smart summarization, keeping your commits accurate and relevant.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Installation Section -->
+    <section class="section" id="installation">
+      <h2 class="section-title">Installation</h2>
+      <p class="section-subtitle">Choose your preferred installation method</p>
+      
+      <div class="code-block">
+        <pre><code id="npm-cmd">npm install -g lazycommitt</code></pre>
+        <button class="copy-btn" data-target="npm-cmd" aria-label="Copy npm install command">Copy</button>
+      </div>
+
+      <p class="info-text">Or install via Homebrew:</p>
+
+      <div class="code-block">
+        <pre><code id="brew-cmd">brew install lazycommit</code></pre>
+        <button class="copy-btn" data-target="brew-cmd" aria-label="Copy brew install command">Copy</button>
+      </div>
+
+      <p class="info-text">If Homebrew fails, use: <code>brew tap kartiklabhshetwar/lazycommit</code> then <code>brew install lazycommit</code></p>
+    </section>
+
+    <!-- Quick Start Section -->
+    <section class="section" id="docs">
+      <h2 class="section-title">Quick Start</h2>
+      <p class="section-subtitle">Set up your API key and start committing</p>
+      
+      <div class="code-block">
+        <pre><code># Set your API key
+lazycommit config set GROQ_API_KEY=your_api_key
+
+# Stage your changes
+git add .
+
+# Generate and commit
+lazycommit</code></pre>
+        <button class="copy-btn" data-target="quickstart" aria-label="Copy quick start commands">Copy</button>
+      </div>
+
+      <p class="info-text">Get your API key from <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer" style="color: var(--accent);">Groq Console</a></p>
+    </section>
+    
+    <!-- Downloads Section -->
+    <section class="section">
+      <h2 class="section-title">Downloads</h2>
+      <p class="section-subtitle">Join thousands of developers using lazycommit</p>
+      <div class="chart-container">
+        <canvas id="downloads-chart" aria-label="Monthly npm downloads for lazycommit" role="img"></canvas>
+      </div>
+    </section>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
+    // Format number with K, M suffixes
+    function formatNumber(num) {
+      if (num >= 1000000) {
+        return (num / 1000000).toFixed(1) + 'M';
+      }
+      if (num >= 1000) {
+        return (num / 1000).toFixed(1) + 'K';
+      }
+      return num.toString();
+    }
+
+    // Load GitHub stars
     (async function loadStars(){
       try{
         const r = await fetch('https://api.github.com/repos/KartikLabhshetwar/lazycommit');
         const j = await r.json();
-        document.getElementById('stars').textContent = j.stargazers_count ?? '0';
-      }catch{ /* noop */ }
+        const starsCount = j.stargazers_count ?? 0;
+        
+        // Update button star count
+        const starsEl = document.getElementById('stars');
+        if (starsEl) starsEl.textContent = starsCount;
+        
+        // Update stats card
+        const totalStarsEl = document.getElementById('total-stars');
+        if (totalStarsEl) {
+          totalStarsEl.textContent = formatNumber(starsCount);
+          totalStarsEl.classList.remove('loading');
+        }
+      }catch{ 
+        const totalStarsEl = document.getElementById('total-stars');
+        if (totalStarsEl) totalStarsEl.textContent = '—';
+      }
     })();
 
+    // Load total downloads
+    (async function loadTotalDownloads(){
+      try{
+        const pkg = 'lazycommitt';
+        
+        // First, get package metadata to find publish date
+        const registryRes = await fetch(`https://registry.npmjs.org/${pkg}`);
+        const registryData = await registryRes.json();
+        
+        if (!registryData || !registryData.time) {
+          throw new Error('Could not get package metadata');
+        }
+        
+        // Get the package creation date from time.created or first version date
+        let publishDate;
+        if (registryData.time.created) {
+          publishDate = registryData.time.created;
+        } else {
+          // Fallback: get earliest version date
+          const versionDates = Object.entries(registryData.time)
+            .filter(([key]) => key !== 'created' && key !== 'modified')
+            .map(([, date]) => date)
+            .filter(date => date && typeof date === 'string')
+            .sort();
+          publishDate = versionDates[0] || new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
+        }
+        
+        const startDate = new Date(publishDate).toISOString().split('T')[0];
+        const endDate = new Date().toISOString().split('T')[0];
+        
+        // Fetch downloads from publish date to now
+        const r = await fetch(`https://api.npmjs.org/downloads/range/${startDate}:${endDate}/${pkg}`);
+        const j = await r.json();
+        
+        if (!j || !Array.isArray(j.downloads)) {
+          throw new Error('Invalid response from downloads API');
+        }
+        
+        // Sum all downloads
+        let totalDownloads = 0;
+        for (const d of j.downloads) {
+          totalDownloads += typeof d.downloads === 'number' ? d.downloads : 0;
+        }
+        
+        const totalDownloadsEl = document.getElementById('total-downloads');
+        if (totalDownloadsEl) {
+          totalDownloadsEl.textContent = formatNumber(totalDownloads);
+          totalDownloadsEl.classList.remove('loading');
+        }
+      }catch(err){ 
+        console.error('Error loading total downloads:', err);
+        const totalDownloadsEl = document.getElementById('total-downloads');
+        if (totalDownloadsEl) {
+          totalDownloadsEl.textContent = '—';
+          totalDownloadsEl.classList.remove('loading');
+        }
+      }
+    })();
+
+    // Load npm version
     (async function loadVersion(){
       try{
         const r = await fetch('https://registry.npmjs.org/lazycommitt');
         const j = await r.json();
         const v = (j['dist-tags'] && j['dist-tags'].latest) || j.version;
-        if (v) document.getElementById('version').textContent = 'v' + v;
+        const versionEl = document.getElementById('version');
+        if (v && versionEl) versionEl.textContent = ' v' + v;
       }catch{ /* noop */ }
     })();
 
+    // Load downloads chart
     (async function loadDownloads(){
       try{
         const pkg = 'lazycommitt';
@@ -95,7 +771,7 @@ lazycommit</code></pre>
         if (!j || !Array.isArray(j.downloads)) return;
         const byMonth = new Map();
         for (const d of j.downloads) {
-          const month = String(d.day).slice(0, 7); // YYYY-MM
+          const month = String(d.day).slice(0, 7);
           const count = typeof d.downloads === 'number' ? d.downloads : 0;
           byMonth.set(month, (byMonth.get(month) ?? 0) + count);
         }
@@ -103,6 +779,7 @@ lazycommit</code></pre>
         const values = labels.map(m => byMonth.get(m));
         const el = document.getElementById('downloads-chart');
         if (!el || !window.Chart) return;
+        
         new Chart(el, {
           type: 'line',
           data: {
@@ -110,22 +787,67 @@ lazycommit</code></pre>
             datasets: [{
               label: 'Monthly downloads',
               data: values,
-              borderColor: '#24292f',
-              backgroundColor: 'rgba(36,41,47,0.08)',
+              borderColor: '#6366f1',
+              backgroundColor: 'rgba(99, 102, 241, 0.1)',
               fill: true,
-              pointRadius: 2,
-              tension: 0.2
+              pointRadius: 3,
+              pointHoverRadius: 5,
+              pointBackgroundColor: '#6366f1',
+              tension: 0.4
             }]
           },
           options: {
-            interaction: { mode: 'index', intersect: false },
             plugins: {
-              legend: { display: true },
-              tooltip: { enabled: true }
+              legend: {
+                display: true,
+                labels: {
+                  color: '#a0a0a0',
+                  font: {
+                    family: "'Inter', sans-serif",
+                    size: 12
+                  }
+                }
+              },
+              tooltip: {
+                enabled: true,
+                backgroundColor: '#1a1a1a',
+                titleColor: '#e5e5e5',
+                bodyColor: '#a0a0a0',
+                borderColor: '#2a2a2a',
+                borderWidth: 1,
+                cornerRadius: 8,
+                padding: 12
+              }
             },
             scales: {
-              x: { ticks: { maxTicksLimit: 12 } },
-              y: { beginAtZero: false }
+              x: {
+                ticks: {
+                  maxTicksLimit: 12,
+                  color: '#6a6a6a',
+                  font: {
+                    family: "'Inter', sans-serif",
+                    size: 11
+                  }
+                },
+                grid: {
+                  color: '#2a2a2a',
+                  drawBorder: false
+                }
+              },
+              y: {
+                beginAtZero: false,
+                ticks: {
+                  color: '#6a6a6a',
+                  font: {
+                    family: "'Inter', sans-serif",
+                    size: 11
+                  }
+                },
+                grid: {
+                  color: '#2a2a2a',
+                  drawBorder: false
+                }
+              }
             },
             responsive: true,
             maintainAspectRatio: false
@@ -134,17 +856,64 @@ lazycommit</code></pre>
       }catch{ /* noop */ }
     })();
 
+    // Copy button functionality
     document.addEventListener('click', function(e){
-      const btn = e.target.closest('.copy');
+      const btn = e.target.closest('.copy-btn');
       if (!btn) return;
-      const id = btn.getAttribute('data-target');
-      const el = document.getElementById(id);
-      if (!el) return;
-      const text = el.textContent.trim();
+      const targetId = btn.getAttribute('data-target');
+      
+      let text = '';
+      if (targetId === 'quickstart') {
+        text = `lazycommit config set GROQ_API_KEY=your_api_key\n\ngit add .\n\nlazycommit`;
+      } else {
+        const el = document.getElementById(targetId);
+        if (!el) return;
+        text = el.textContent.trim();
+      }
+      
       navigator.clipboard.writeText(text).then(() => {
-        const old = btn.textContent;
-        btn.textContent = 'Copied';
-        setTimeout(() => { btn.textContent = old; }, 1200);
+        const oldText = btn.textContent;
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = oldText;
+          btn.classList.remove('copied');
+        }, 2000);
+      }).catch(() => {
+        // Fallback for older browsers
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        try {
+          document.execCommand('copy');
+          const oldText = btn.textContent;
+          btn.textContent = 'Copied!';
+          btn.classList.add('copied');
+          setTimeout(() => {
+            btn.textContent = oldText;
+            btn.classList.remove('copied');
+          }, 2000);
+        } catch (err) {
+          // Copy failed
+        }
+        document.body.removeChild(textarea);
+      });
+    });
+
+    // Smooth scroll for anchor links
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+      anchor.addEventListener('click', function (e) {
+        e.preventDefault();
+        const target = document.querySelector(this.getAttribute('href'));
+        if (target) {
+          target.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start'
+          });
+        }
       });
     });
   </script>
