@@ -1,0 +1,226 @@
+# lazycommit
+
+lazycommit is a command-line tool designed to streamline your Git commit process by generating clear, context-aware commit messages using Groq's AI. It integrates seamlessly with your Git workflow, allowing you to focus on coding while it handles the commit message generation.
+
+## Features
+
+- **Instant Commit Messages**: Generate clear, context-aware messages based on staged changes using Groq's ultra-fast inference API.
+
+- **Seamless Git Integration**: Review, edit, and commit messages directly with an interactive workflow.
+
+- **Conventional Commits**: Generate commit messages that follow the Conventional Commits specification.
+
+- **Multiple Recommendations**: Generate multiple commit message options to choose from.
+
+- **Smart Large Diff Handling**: Automatically handles large commits with compact summaries to stay within API limits.
+
+- **Git Hook Integration**: Works seamlessly with git hooks for automatic message generation.
+
+- **File Exclusion**: Exclude specific files from AI analysis.
+
+## Installation
+
+Install lazycommit globally using npm:
+
+```bash
+npm install -g lazycommitt
+```
+
+Or install via Homebrew (macOS):
+
+```bash
+brew install lazycommit
+```
+
+After installation, you can run `lazycommit` (or the `lzc` alias) from any terminal.
+
+## Prerequisites
+
+Before using lazycommit, you must configure your [Groq API](https://console.groq.com/keys) key. You can provide your API key in two ways:
+
+### 1. Using an environment variable (recommended)
+
+Set the `GROQ_API_KEY` environment variable globally so it's available across your system.
+
+#### macOS/Linux (e.g., in .bashrc, .zshrc or .profile)
+
+```bash
+export GROQ_API_KEY=your_api_key_here
+```
+
+Then reload your terminal or run:
+
+```bash
+source ~/.zshrc # or ~/.bashrc or ~/.profile
+```
+
+#### Windows (Command Prompt or PowerShell):
+
+```bash
+setx GROQ_API_KEY "your_api_key_here"
+```
+
+> Note: You may need to restart your terminal (or system) for changes to take effect.
+
+### 2. Using the built-in configuration command
+
+```bash
+lazycommit config set GROQ_API_KEY=<your token>
+```
+
+This will create a `.lazycommit` file in your home directory.
+
+> lazycommit will first look for the `GROQ_API_KEY` environment variable. If it's not found, it will fall back to the local configuration.
+
+You can also configure other options:
+
+```bash
+lazycommit config set model=llama-3.1-70b-versatile
+lazycommit config set locale=en
+lazycommit config set generate=3
+lazycommit config set type=conventional
+lazycommit config set max-length=150
+```
+
+## Usage
+
+### Basic Usage
+
+Generate a new commit message:
+
+```bash
+git add <files...>
+lazycommit
+```
+
+Or use the short alias:
+
+```bash
+lzc
+```
+
+### Stage All Changes
+
+Stage all changes in tracked files as you commit:
+
+```bash
+lazycommit --all # or -a
+```
+
+### Generate Multiple Recommendations
+
+Generate multiple commit messages to choose from:
+
+```bash
+lazycommit --generate 3 # or -g 3
+```
+
+> Warning: This uses more tokens, meaning it costs more.
+
+### Conventional Commits
+
+Generate commit messages that follow the Conventional Commits specification:
+
+```bash
+lazycommit --type conventional # or -t conventional
+```
+
+### Exclude Files from Analysis
+
+Exclude specific files from AI analysis:
+
+```bash
+lazycommit --exclude package-lock.json --exclude dist/
+```
+
+### Review, Edit, and Confirm
+
+lazycommit provides an interactive workflow:
+
+- You'll see a menu: **Use as-is**, **Edit**, or **Cancel**
+- If you choose **Use as-is**, it commits immediately
+- If you choose **Edit**, you can modify the message, then confirm before committing
+
+### Git Hook Integration
+
+Install the git hook for automatic message generation:
+
+```bash
+lazycommit hook install
+```
+
+Then use git normally:
+
+```bash
+git add <files...>
+git commit # lazycommit will automatically generate a message
+```
+
+Uninstall the hook:
+
+```bash
+lazycommit hook uninstall
+```
+
+### Handling Large Diffs
+
+For large commits with many files, lazycommit automatically:
+
+- Uses `git diff --cached --numstat` to create compact summaries
+- Includes context snippets from top changed files
+- Stays within API token limits while maintaining accuracy
+
+## Configuration
+
+View configuration values:
+
+```bash
+lazycommit config get GROQ_API_KEY
+lazycommit config get generate
+```
+
+Set configuration values:
+
+```bash
+lazycommit config set GROQ_API_KEY=<your token>
+lazycommit config set generate=3 locale=en type=conventional
+```
+
+Available configuration options:
+
+- `GROQ_API_KEY` (required) - Your Groq API key
+- `locale` (default: `en`) - Locale for commit messages
+- `generate` (default: `1`) - Number of messages to generate
+- `model` (default: `openai/gpt-oss-20b`) - Groq model to use
+- `type` (default: `""`) - Commit type (e.g., `conventional`)
+- `timeout` (default: `10000`) - API timeout in milliseconds
+- `max-length` (default: `100`) - Maximum commit message length
+- `proxy` - HTTP/HTTPS proxy URL
+
+## Pro Tips
+
+- 🚀 Use `lzc` as a shorter alias for faster typing!
+- 💡 Use `--generate 3` when you want multiple options to choose from
+- 🎯 Use `--type conventional` for projects following Conventional Commits
+- 📦 Use `--exclude` to ignore build artifacts and lock files
+- 🔗 Install the git hook for seamless integration with your workflow
+
+## Why Groq?
+
+lazycommit uses Groq because it provides:
+
+- **Ultra-fast inference** - Get commit messages in seconds
+- **Cost-effective** - More affordable than traditional AI APIs
+- **Open source models** - Uses leading open-source language models
+- **Reliable** - High uptime and consistent performance
+
+## Contributing
+
+We welcome contributions and suggestions! If you have ideas or improvements, feel free to reach out or open a pull request.
+
+Thank you for using `lazycommit`! If you have any feedback or suggestions, feel free to reach out or contribute to the project. ✨
+
+## License
+
+This project is licensed under the Apache-2.0 License.
+© 2024 [Kartik Labhshetwar](https://github.com/KartikLabhshetwar)
