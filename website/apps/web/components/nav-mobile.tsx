@@ -9,6 +9,7 @@ import { ArrowDown01Icon, Menu11Icon } from "@hugeicons/core-free-icons";
 
 import { usePathname } from "next/navigation";
 import { useHotkeys } from "react-hotkeys-hook";
+import Link from "next/link";
 
 import { AsideLink } from "~/components/aside-link";
 
@@ -146,6 +147,17 @@ export function NavbarMobile() {
             ))}
           </div>
         </MotionConfig>
+        <div className="border-t px-6 py-4">
+          <Link
+            href="https://noto.snelusha.dev/"
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={toggle}
+            className="text-muted-foreground/80 hover:text-foreground flex items-center gap-2 font-mono text-sm transition-colors"
+          >
+            Credits
+          </Link>
+        </div>
       </div>
     </div>
   );

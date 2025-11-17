@@ -17,8 +17,16 @@ export function Navbar() {
             </div>
           </Link>
         </div>
-        <div className="relative flex w-full items-center justify-end px-6 md:col-span-10">
+        <div className="relative flex w-full items-center justify-end gap-4 px-6 md:col-span-10">
           <ul className="hidden w-max shrink-0 items-center divide-x md:flex"></ul>
+          <Link
+            href="https://noto.snelusha.dev/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-muted-foreground/80 hover:text-foreground hidden items-center gap-2 font-mono text-sm transition-colors md:flex"
+          >
+            Credits
+          </Link>
           <NavbarMobileButton />
         </div>
       </nav>

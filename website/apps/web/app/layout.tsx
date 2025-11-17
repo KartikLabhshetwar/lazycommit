@@ -2,8 +2,6 @@ import "~/styles/globals.css";
 
 import { callingCode, geistMono, geistSans } from "~/styles/fonts";
 
-import { Databuddy } from "@databuddy/sdk/react";
-
 import { cn } from "~/styles/utils";
 
 import { config } from "~/config";
@@ -56,13 +54,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <Databuddy
-        clientId="reT8eU-VUrTZIcCJMddD_"
-        trackHashChanges={true}
-        trackScrollDepth={true}
-        trackPerformance={false}
-        enableBatching={true}
-      />
       <body
         className={cn(
           callingCode.variable,
