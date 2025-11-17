@@ -11,7 +11,6 @@
   },
   "dependencies": {
     "@content-collections/mdx": "^0.2.2",
-    "@databuddy/sdk": "^2.2.1",
     "@hugeicons/core-free-icons": "^2.0.0",
     "@hugeicons/react": "^1.1.1",
     "@radix-ui/react-scroll-area": "^1.2.10",
