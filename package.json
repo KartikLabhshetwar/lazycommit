@@ -1,6 +1,6 @@
 {
   "name": "lazycommitt",
-  "version": "1.0.18",
+  "version": "1.0.19",
   "description": "Writes your git commit messages for you with AI using Groq",
   "main": "index.js",
   "scripts": {
