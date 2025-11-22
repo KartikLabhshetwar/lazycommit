@@ -28,7 +28,7 @@ That's it! You can now use `lazycommit` (or the `lzc` alias) from anywhere in yo
 Install via Homebrew tap:
 
 ```bash
-brew tap KartikLabhshetwar/lazycommit
+brew tap KartikLabhshetwar/lazycommit https://github.com/KartikLabhshetwar/lazycommit
 brew install lazycommit
 ```
 

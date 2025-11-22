@@ -33,7 +33,7 @@
 Install via Homebrew tap:
 
 ```sh
-brew tap KartikLabhshetwar/lazycommit
+brew tap KartikLabhshetwar/lazycommit https://github.com/KartikLabhshetwar/lazycommit
 brew install lazycommit
 ```
 
