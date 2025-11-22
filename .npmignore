@@ -1,1 +1,9 @@
 website/
+test/
+.github/
+.vscode/
+.editorconfig
+.prettierignore
+.prettierrc
+.gitignore
+.gitignore

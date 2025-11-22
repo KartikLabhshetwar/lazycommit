@@ -30,13 +30,17 @@
 
 ### Install via Homebrew (macOS)
 
+Install via Homebrew tap:
+
 ```sh
+brew tap KartikLabhshetwar/lazycommit
 brew install lazycommit
 ```
 
 Upgrade:
 
 ```sh
+brew update
 brew upgrade lazycommit
 ```
 

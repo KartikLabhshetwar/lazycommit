@@ -29,8 +29,10 @@ npm install -g lazycommitt
 Or install via Homebrew (macOS):
 
 ```bash
+brew tap KartikLabhshetwar/lazycommit
 brew install lazycommit
 ```
+
 
 After installation, you can run `lazycommit` (or the `lzc` alias) from any terminal.
 

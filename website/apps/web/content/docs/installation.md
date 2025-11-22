@@ -23,6 +23,15 @@ npm install -g lazycommitt
 
 That's it! You can now use `lazycommit` (or the `lzc` alias) from anywhere in your terminal.
 
+### Homebrew (macOS)
+
+Install via Homebrew tap:
+
+```bash
+brew tap KartikLabhshetwar/lazycommit
+brew install lazycommit
+```
+
 ## API Key Setup
 
 lazycommit needs a Groq API key to generate commit messages. Set the key so lazycommit can use it:
@@ -62,6 +71,7 @@ npm update -g lazycommitt
 Or if you installed via Homebrew:
 
 ```bash
+brew update
 brew upgrade lazycommit
 ```
 
