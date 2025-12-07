@@ -20,7 +20,7 @@
     "geist": "^1.5.1",
     "jotai": "^2.15.1",
     "motion": "^12.23.24",
-    "next": "^16.0.1",
+    "next": "16.0.7",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-hotkeys-hook": "^5.2.1",
