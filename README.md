@@ -5,7 +5,7 @@
 
   </div>
 	<p>A CLI that writes your git commit messages for you with AI using Groq. Never write a commit message again.</p>
-	<a href="https://www.npmjs.com/package/lazycommitz"><img src="https://img.shields.io/npm/v/lazycommitt" alt="Current version"></a>
+	<a href="https://www.npmjs.com/package/lazycommitt"><img src="https://img.shields.io/npm/v/lazycommitt" alt="Current version"></a>
 	<a href="https://github.com/KartikLabhshetwar/lazycommit"><img src="https://img.shields.io/github/stars/KartikLabhshetwar/lazycommit" alt="GitHub stars"></a>
 	<a href="https://github.com/KartikLabhshetwar/lazycommit/blob/main/LICENSE"><img src="https://img.shields.io/npm/l/lazycommitt" alt="License"></a>
 </div>
