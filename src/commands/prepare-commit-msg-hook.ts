@@ -4,7 +4,8 @@ import { black, green, red, bgCyan } from 'kolorist';
 import { getStagedDiff, buildCompactSummary } from '../utils/git.js';
 import { buildSingleCommitPrompt } from './lazycommit.js';
 import { getConfig } from '../utils/config.js';
-import { generateCommitMessageFromSummary } from '../utils/groq.js';
+import { generateCommitMessageFromSummary as generateFromGroq } from '../utils/groq.js';
+import { generateCommitMessageFromSummary as generateFromOpenRouter } from '../utils/openrouter.js';
 import { KnownError, handleCliError } from '../utils/error.js';
 
 const [messageFilePath, commitSource] = process.argv.slice(2);
@@ -33,20 +34,30 @@ export default () =>
 		const { env } = process;
 		const config = await getConfig({
 			GROQ_API_KEY: env.GROQ_API_KEY,
+			OPENROUTER_API_KEY: env.OPENROUTER_API_KEY,
 			proxy:
 				env.https_proxy || env.HTTPS_PROXY || env.http_proxy || env.HTTP_PROXY,
 		});
 
+		// Select the appropriate generator based on provider
+		const generateCommitMessage = config.provider === 'openrouter' 
+			? generateFromOpenRouter 
+			: generateFromGroq;
+		
+		const apiKey = config.provider === 'openrouter'
+			? config.OPENROUTER_API_KEY!
+			: config.GROQ_API_KEY!;
+
 		const s = spinner();
-		s.start('The AI is analyzing your changes');
+		s.start(`The AI is analyzing your changes (using ${config.provider})`);
 		let messages: string[];
 		try {
 			const compact = await buildCompactSummary();
 			if (compact) {
 				const enhanced = await buildSingleCommitPrompt(staged.files, compact, config['max-length']);
-				messages = await generateCommitMessageFromSummary(
-					config.GROQ_API_KEY,
-					config.model,
+				messages = await generateCommitMessage(
+					apiKey,
+					config.model!,
 					config.locale,
 					enhanced,
 					config.generate,
@@ -59,9 +70,9 @@ export default () =>
 				// Fallback to simple file list if summary fails
 				const fileList = staged!.files.join(', ');
 				const fallbackPrompt = await buildSingleCommitPrompt(staged.files, `Files: ${fileList}`, config['max-length']);
-				messages = await generateCommitMessageFromSummary(
-					config.GROQ_API_KEY,
-					config.model,
+				messages = await generateCommitMessage(
+					apiKey,
+					config.model!,
 					config.locale,
 					fallbackPrompt,
 					config.generate,

@@ -1,7 +1,7 @@
 {
   "name": "lazycommitt",
-  "version": "1.0.19",
-  "description": "Writes your git commit messages for you with AI using Groq",
+  "version": "1.1.0",
+  "description": "Writes your git commit messages for you with AI using Groq or OpenRouter (100+ models)",
   "main": "index.js",
   "scripts": {
     "build": "pkgroll --minify",
@@ -15,6 +15,10 @@
     "commit",
     "ai",
     "groq",
+    "openrouter",
+    "claude",
+    "gpt",
+    "llama",
     "github",
     "cli"
   ],

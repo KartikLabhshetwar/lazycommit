@@ -6,8 +6,10 @@ import { fileExists } from './fs.js';
 import { KnownError } from './error.js';
 
 const commitTypes = ['', 'conventional'] as const;
+const providers = ['groq', 'openrouter'] as const;
 
 export type CommitType = (typeof commitTypes)[number];
+export type Provider = (typeof providers)[number];
 
 const { hasOwnProperty } = Object.prototype;
 export const hasOwn = (object: unknown, key: PropertyKey) =>
@@ -21,14 +23,31 @@ const parseAssert = (name: string, condition: any, message: string) => {
 
 const configParsers = {
 	GROQ_API_KEY(key?: string) {
+		// Optional - only required if provider is groq
 		if (!key) {
-			throw new KnownError(
-				'Please set your Groq API key via `lazycommit config set GROQ_API_KEY=<your token>`'
-			);
+			return undefined;
 		}
 		parseAssert('GROQ_API_KEY', key.startsWith('gsk_'), 'Must start with "gsk_"');
-
 		return key;
+	},
+	OPENROUTER_API_KEY(key?: string) {
+		// Optional - only required if provider is openrouter
+		if (!key) {
+			return undefined;
+		}
+		parseAssert('OPENROUTER_API_KEY', key.startsWith('sk-or-'), 'Must start with "sk-or-"');
+		return key;
+	},
+	provider(provider?: string) {
+		if (!provider) {
+			return 'groq' as Provider; // Default to groq for backward compatibility
+		}
+		parseAssert(
+			'provider',
+			providers.includes(provider as Provider),
+			`Must be one of: ${providers.join(', ')}`
+		);
+		return provider as Provider;
 	},
 	locale(locale?: string) {
 		if (!locale) {
@@ -79,10 +98,10 @@ const configParsers = {
 		return url;
 	},
 	model(model?: string) {
+		// Model default depends on provider, handled in getConfig
 		if (!model || model.length === 0) {
-			return 'openai/gpt-oss-20b';
+			return undefined;
 		}
-
 		return model;
 	},
 	timeout(timeout?: string) {
@@ -130,6 +149,12 @@ export type ValidConfig = {
 	[Key in ConfigKeys]: ReturnType<(typeof configParsers)[Key]>;
 };
 
+// Default models per provider
+const defaultModels: Record<Provider, string> = {
+	groq: 'llama-3.1-8b-instant',
+	openrouter: 'anthropic/claude-3.5-sonnet',
+};
+
 const configPath = path.join(os.homedir(), '.lazycommit');
 
 const readConfigFile = async (): Promise<RawConfig> => {
@@ -159,6 +184,26 @@ export const getConfig = async (
 			} catch {}
 		} else {
 			parsedConfig[key] = parser(value);
+		}
+	}
+
+	// Set default model based on provider if not specified
+	const provider = parsedConfig.provider as Provider;
+	if (!parsedConfig.model) {
+		parsedConfig.model = defaultModels[provider];
+	}
+
+	// Validate that the required API key is set for the selected provider
+	if (!suppressErrors) {
+		if (provider === 'groq' && !parsedConfig.GROQ_API_KEY) {
+			throw new KnownError(
+				'Please set your Groq API key via `lazycommit config set GROQ_API_KEY=<your token>`\nGet your key from https://console.groq.com/keys'
+			);
+		}
+		if (provider === 'openrouter' && !parsedConfig.OPENROUTER_API_KEY) {
+			throw new KnownError(
+				'Please set your OpenRouter API key via `lazycommit config set OPENROUTER_API_KEY=<your token>`\nGet your key from https://openrouter.ai/keys'
+			);
 		}
 	}
 

@@ -7,72 +7,73 @@ import {
 	select,
 	confirm,
 	isCancel,
-    text,
+	text,
 } from '@clack/prompts';
 import {
-    assertGitRepo,
-    getStagedDiff,
-    getDetectedMessage,
-    getDiffSummary,
-    buildCompactSummary,
+	assertGitRepo,
+	getStagedDiff,
+	getDetectedMessage,
+	getDiffSummary,
+	buildCompactSummary,
 } from '../utils/git.js';
 import { getConfig } from '../utils/config.js';
-import { generateCommitMessageFromSummary } from '../utils/groq.js';
+import { generateCommitMessageFromSummary as generateFromGroq } from '../utils/groq.js';
+import { generateCommitMessageFromSummary as generateFromOpenRouter } from '../utils/openrouter.js';
 import { generatePrompt } from '../utils/prompt.js';
 import { KnownError, handleCliError } from '../utils/error.js';
 
 
 // Build lightweight per-file diff snippets to give semantic context without huge payloads
 const buildDiffSnippets = async (
-    files: string[],
-    perFileMaxLines: number = 30,
-    totalMaxChars: number = 4000
+	files: string[],
+	perFileMaxLines: number = 30,
+	totalMaxChars: number = 4000
 ): Promise<string> => {
-    try {
-        const targetFiles = files.slice(0, 5);
-        const parts: string[] = [];
-        let remaining = totalMaxChars;
-        for (const f of targetFiles) {
-            const { stdout } = await execa('git', ['diff', '--cached', '--unified=0', '--', f]);
-            if (!stdout) continue;
-            const lines = stdout.split('\n').filter(Boolean);
-            const picked: string[] = [];
-            let count = 0;
-            for (const line of lines) {
-                const isHunk = line.startsWith('@@');
-                const isChange = (line.startsWith('+') || line.startsWith('-')) && !line.startsWith('+++') && !line.startsWith('---');
-                if (isHunk || isChange) {
-                    picked.push(line);
-                    count++;
-                    if (count >= perFileMaxLines) break;
-                }
-            }
-            if (picked.length > 0) {
-                const block = [`# ${f}`, ...picked].join('\n');
-                if (block.length <= remaining) {
-                    parts.push(block);
-                    remaining -= block.length;
-                } else {
-                    parts.push(block.slice(0, Math.max(0, remaining)));
-                    remaining = 0;
-                }
-            }
-            if (remaining <= 0) break;
-        }
-        if (parts.length === 0) return '';
-        return ['Context snippets (truncated):', ...parts].join('\n');
-    } catch {
-        return '';
-    }
+	try {
+		const targetFiles = files.slice(0, 5);
+		const parts: string[] = [];
+		let remaining = totalMaxChars;
+		for (const f of targetFiles) {
+			const { stdout } = await execa('git', ['diff', '--cached', '--unified=0', '--', f]);
+			if (!stdout) continue;
+			const lines = stdout.split('\n').filter(Boolean);
+			const picked: string[] = [];
+			let count = 0;
+			for (const line of lines) {
+				const isHunk = line.startsWith('@@');
+				const isChange = (line.startsWith('+') || line.startsWith('-')) && !line.startsWith('+++') && !line.startsWith('---');
+				if (isHunk || isChange) {
+					picked.push(line);
+					count++;
+					if (count >= perFileMaxLines) break;
+				}
+			}
+			if (picked.length > 0) {
+				const block = [`# ${f}`, ...picked].join('\n');
+				if (block.length <= remaining) {
+					parts.push(block);
+					remaining -= block.length;
+				} else {
+					parts.push(block.slice(0, Math.max(0, remaining)));
+					remaining = 0;
+				}
+			}
+			if (remaining <= 0) break;
+		}
+		if (parts.length === 0) return '';
+		return ['Context snippets (truncated):', ...parts].join('\n');
+	} catch {
+		return '';
+	}
 };
 
 export const buildSingleCommitPrompt = async (
-    files: string[],
-    compactSummary: string,
-    maxLength: number
+	files: string[],
+	compactSummary: string,
+	maxLength: number
 ): Promise<string> => {
-    const snippets = await buildDiffSnippets(files, 30, 3000);
-    return `Analyze the following git changes and generate a single, complete conventional commit message.
+	const snippets = await buildDiffSnippets(files, 30, 3000);
+	return `Analyze the following git changes and generate a single, complete conventional commit message.
 
 CHANGES SUMMARY:
 ${compactSummary}
@@ -184,25 +185,33 @@ export default async (
 		const { env } = process;
 		const config = await getConfig({
 			GROQ_API_KEY: env.GROQ_API_KEY,
+			OPENROUTER_API_KEY: env.OPENROUTER_API_KEY,
 			proxy:
 				env.https_proxy || env.HTTPS_PROXY || env.http_proxy || env.HTTP_PROXY,
 			generate: generate?.toString(),
 			type: commitType?.toString(),
 		});
 
-		// Grouping flow disabled
+		// Select the appropriate generator based on provider
+		const generateCommitMessage = config.provider === 'openrouter' 
+			? generateFromOpenRouter 
+			: generateFromGroq;
+		
+		const apiKey = config.provider === 'openrouter'
+			? config.OPENROUTER_API_KEY!
+			: config.GROQ_API_KEY!;
 
 		// Single commit workflow - use compact summary approach
 		const s = spinner();
-		s.start('The AI is analyzing your changes');
-        let messages: string[];
+		s.start(`The AI is analyzing your changes (using ${config.provider})`);
+		let messages: string[];
 		try {
 			const compact = await buildCompactSummary(excludeFiles, 25);
 			if (compact) {
 				const enhanced = await buildSingleCommitPrompt(staged.files, compact, config['max-length']);
-				messages = await generateCommitMessageFromSummary(
-					config.GROQ_API_KEY,
-					config.model,
+				messages = await generateCommitMessage(
+					apiKey,
+					config.model!,
 					config.locale,
 					enhanced,
 					config.generate,
@@ -215,10 +224,9 @@ export default async (
 				// Fallback to simple file list if summary fails
 				const fileList = staged.files.join(', ');
 				const fallbackPrompt = await buildSingleCommitPrompt(staged.files, `Files: ${fileList}`, config['max-length']);
-				const systemPrompt = generatePrompt(config.locale, config['max-length'], config.type);
-				messages = await generateCommitMessageFromSummary(
-					config.GROQ_API_KEY,
-					config.model,
+				messages = await generateCommitMessage(
+					apiKey,
+					config.model!,
 					config.locale,
 					fallbackPrompt,
 					config.generate,
