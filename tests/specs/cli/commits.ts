@@ -74,6 +74,30 @@ export default testSuite(({ describe }) => {
 			await fixture.rm();
 		});
 
+		test('Skips approval with --yes flag', async () => {
+			const { fixture, lazycommit } = await createFixture(files);
+			const git = await createGit(fixture.path);
+
+			await git('add', ['data.json']);
+
+			// With --yes, should commit immediately without prompts
+			await lazycommit(['--yes']);
+
+			const statusAfter = await git('status', [
+				'--porcelain',
+				'--untracked-files=no',
+			]);
+			expect(statusAfter.stdout).toBe('');
+
+			const { stdout: commitMessage } = await git('log', [
+				'--pretty=format:%s',
+			]);
+			expect(commitMessage).toBeTruthy();
+			expect(commitMessage?.length).toBeLessThanOrEqual(50);
+
+			await fixture.rm();
+		});
+
 		test('Generated commit message must be under 20 characters', async () => {
 			const { fixture, lazycommit } = await createFixture({
 				...files,
