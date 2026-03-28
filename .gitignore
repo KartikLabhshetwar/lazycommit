@@ -24,3 +24,5 @@ dist
 
 # Eslint cache
 .eslintcache
+.cph/
+A_New_Year_String.cpp
