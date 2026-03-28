@@ -55,6 +55,18 @@ cli(
 				alias: 's',
 				default: false,
 			},
+			yes: {
+				type: Boolean,
+				description: 'Skip approval and commit immediately',
+				alias: 'y',
+				default: false,
+			},
+			noVerify: {
+				type: Boolean,
+				description: 'Bypass pre-commit and commit-msg hooks',
+				alias: 'n',
+				default: false,
+			},
 		},
 
 		commands: [configCommand, hookCommand],
@@ -75,6 +87,8 @@ cli(
 				argv.flags.all,
 				argv.flags.type,
 				argv.flags.split,
+				argv.flags.yes,
+				argv.flags.noVerify,
 				rawArgv
 			);
 		}

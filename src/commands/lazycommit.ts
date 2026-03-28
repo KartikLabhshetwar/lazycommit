@@ -131,6 +131,8 @@ export default async (
 	stageAll: boolean,
 	commitType: string | undefined,
 	splitCommits: boolean,
+	skipApproval: boolean,
+	noVerify: boolean,
 	rawArgv: string[]
 ) =>
 	(async () => {
@@ -239,7 +241,11 @@ export default async (
 		let message: string;
 		let editedAlready = false;
 		let useAsIs = false;
-		if (messages.length === 1) {
+
+		if (skipApproval) {
+			message = messages[0];
+			useAsIs = true;
+		} else if (messages.length === 1) {
 			[message] = messages;
 			const choice = await select({
 				message: `Review generated commit message:\n\n   ${message}\n`,
@@ -313,7 +319,12 @@ export default async (
 			}
 		}
 
-		await execa('git', ['commit', '-m', message, ...rawArgv]);
+		const commitArgs = ['commit', '-m', message];
+		if (noVerify) {
+			commitArgs.push('--no-verify');
+		}
+		commitArgs.push(...rawArgv);
+		await execa('git', commitArgs);
 
 		outro(`${green('✔')} Successfully committed!`);
 	})().catch((error) => {

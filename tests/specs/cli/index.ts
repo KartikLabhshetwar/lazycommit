@@ -4,5 +4,6 @@ export default testSuite(({ describe }) => {
 	describe('CLI', ({ runTestSuite }) => {
 		runTestSuite(import('./error-cases.js'));
 		runTestSuite(import('./commits.js'));
+    	runTestSuite(import('./no-verify.js'));
 	});
 });
