@@ -14,9 +14,9 @@ export default testSuite(({ describe }) => {
 	}
 
 	describe('Conventional Commits', async ({ test }) => {
-		await test('Should not translate conventional commit type to Japanase when locale config is set to japanese', async () => {
+		await test('Should not translate conventional commit type to Japanese when locale config is set to japanese', async () => {
 			const japaneseConventionalCommitPattern =
-				/(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\(.*\))?: [\u3000-\u303F\u3040-\u309F\u30A0-\u30FF\uFF00-\uFF9F\u4E00-\u9FAF\u3400-\u4DBF]/;
+				/(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\(.*\))?: [^\r\n]*[\u3000-\u303F\u3040-\u309F\u30A0-\u30FF\uFF00-\uFF9F\u4E00-\u9FAF\u3400-\u4DBF]/;
 
 			const gitDiff = await getDiff('new-feature.diff');
 

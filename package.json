@@ -7,7 +7,7 @@
     "build": "pkgroll --minify",
     "lint": "",
     "type-check": "tsc",
-    "test": "tsx tests",
+    "test": "tsx tests/regressions.ts && tsx tests",
     "prepack": "pnpm build && clean-pkg-json"
   },
   "keywords": [

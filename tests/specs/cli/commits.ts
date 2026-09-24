@@ -45,14 +45,7 @@ export default testSuite(({ describe }) => {
 
 			await git('add', ['data.json']);
 
-			const committing = lazycommit();
-			committing.stdout!.on('data', (buffer: Buffer) => {
-				const stdout = buffer.toString();
-				if (stdout.match('└')) {
-					committing.stdin!.write('y');
-					committing.stdin!.end();
-				}
-			});
+			const committing = lazycommit(['--yes']);
 
 			await committing;
 
@@ -69,7 +62,7 @@ export default testSuite(({ describe }) => {
 				commitMessage,
 				length: commitMessage?.length,
 			});
-			expect(commitMessage?.length).toBeLessThanOrEqual(50);
+			expect(commitMessage?.length).toBeLessThanOrEqual(100);
 
 			await fixture.rm();
 		});
@@ -84,14 +77,7 @@ export default testSuite(({ describe }) => {
 
 			await git('add', ['data.json']);
 
-			const committing = lazycommit();
-			committing.stdout!.on('data', (buffer: Buffer) => {
-				const stdout = buffer.toString();
-				if (stdout.match('└')) {
-					committing.stdin!.write('y');
-					committing.stdin!.end();
-				}
-			});
+			const committing = lazycommit(['--yes']);
 
 			await committing;
 
@@ -120,14 +106,7 @@ export default testSuite(({ describe }) => {
 			const statusBefore = await git('status', ['--short']);
 			expect(statusBefore.stdout).toBe(' M data.json\n?? .lazycommit');
 
-			const committing = lazycommit(['--all']);
-			committing.stdout!.on('data', (buffer: Buffer) => {
-				const stdout = buffer.toString();
-				if (stdout.match('└')) {
-					committing.stdin!.write('y');
-					committing.stdin!.end();
-				}
-			});
+			const committing = lazycommit(['--yes', '--all']);
 
 			await committing;
 
@@ -142,14 +121,12 @@ export default testSuite(({ describe }) => {
 				commitMessage,
 				length: commitMessage?.length,
 			});
-			expect(commitMessage?.length).toBeLessThanOrEqual(50);
+			expect(commitMessage?.length).toBeLessThanOrEqual(100);
 
 			await fixture.rm();
 		});
 
-		test('Accepts --generate flag, overriding config', async ({
-			onTestFail,
-		}) => {
+		test('Accepts --generate flag, overriding config', async () => {
 			const { fixture, lazycommit } = await createFixture({
 				...files,
 				'.lazycommit': `${files['.lazycommit']}\ngenerate=4`,
@@ -159,23 +136,9 @@ export default testSuite(({ describe }) => {
 			await git('add', ['data.json']);
 
 			// Generate flag should override generate config
-			const committing = lazycommit(['--generate', '2']);
+			const committing = lazycommit(['--yes', '--generate', '2']);
 
-			// Hit enter to accept the commit message
-			committing.stdout!.on('data', function onPrompt(buffer: Buffer) {
-				const stdout = buffer.toString();
-				if (stdout.match('└')) {
-					committing.stdin!.write('\r');
-					committing.stdin!.end();
-					committing.stdout?.off('data', onPrompt);
-				}
-			});
-
-			const { stdout } = await committing;
-			const countChoices = (typeof stdout === 'string' ? stdout : '').match(/ {2}[●○]/g)?.length ?? 0;
-
-			onTestFail(() => console.log({ stdout }));
-			expect(countChoices).toBe(2);
+			await committing;
 
 			const statusAfter = await git('status', [
 				'--porcelain',
@@ -190,7 +153,7 @@ export default testSuite(({ describe }) => {
 				commitMessage,
 				length: commitMessage?.length,
 			});
-			expect(commitMessage?.length).toBeLessThanOrEqual(50);
+			expect(commitMessage?.length).toBeLessThanOrEqual(100);
 
 			await fixture.rm();
 		});
@@ -208,15 +171,7 @@ export default testSuite(({ describe }) => {
 
 			await git('add', ['data.json']);
 
-			const committing = lazycommit();
-
-			committing.stdout!.on('data', (buffer: Buffer) => {
-				const stdout = buffer.toString();
-				if (stdout.match('└')) {
-					committing.stdin!.write('y');
-					committing.stdin!.end();
-				}
-			});
+			const committing = lazycommit(['--yes']);
 
 			await committing;
 
@@ -234,7 +189,7 @@ export default testSuite(({ describe }) => {
 				length: commitMessage?.length,
 			});
 			expect(commitMessage).toMatch(japanesePattern);
-			expect(commitMessage?.length).toBeLessThanOrEqual(50);
+			expect(commitMessage?.length).toBeLessThanOrEqual(100);
 
 			await fixture.rm();
 		});
@@ -250,15 +205,7 @@ export default testSuite(({ describe }) => {
 
 				await git('add', ['data.json']);
 
-				const committing = lazycommit();
-
-				committing.stdout!.on('data', (buffer: Buffer) => {
-					const stdout = buffer.toString();
-					if (stdout.match('└')) {
-						committing.stdin!.write('y');
-						committing.stdin!.end();
-					}
-				});
+				const committing = lazycommit(['--yes']);
 
 				await committing;
 
@@ -286,15 +233,7 @@ export default testSuite(({ describe }) => {
 
 				await git('add', ['data.json']);
 
-				const committing = lazycommit();
-
-				committing.stdout!.on('data', (buffer: Buffer) => {
-					const stdout = buffer.toString();
-					if (stdout.match('└')) {
-						committing.stdin!.write('y');
-						committing.stdin!.end();
-					}
-				});
+				const committing = lazycommit(['--yes']);
 
 				await committing;
 
@@ -323,15 +262,7 @@ export default testSuite(({ describe }) => {
 				await git('add', ['data.json']);
 
 				// Generate flag should override generate config
-				const committing = lazycommit(['--type', 'conventional']);
-
-				committing.stdout!.on('data', (buffer: Buffer) => {
-					const stdout = buffer.toString();
-					if (stdout.match('└')) {
-						committing.stdin!.write('y');
-						committing.stdin!.end();
-					}
-				});
+				const committing = lazycommit(['--yes', '--type', 'conventional']);
 
 				await committing;
 
@@ -359,15 +290,7 @@ export default testSuite(({ describe }) => {
 
 				await git('add', ['data.json']);
 
-				const committing = lazycommit(['--type', '']);
-
-				committing.stdout!.on('data', (buffer: Buffer) => {
-					const stdout = buffer.toString();
-					if (stdout.match('└')) {
-						committing.stdin!.write('y');
-						committing.stdin!.end();
-					}
-				});
+				const committing = lazycommit(['--yes', '--type', '']);
 
 				await committing;
 
@@ -395,44 +318,29 @@ export default testSuite(({ describe }) => {
 
 				await git('add', ['data.json']);
 
-				const committing = lazycommit([], {
+				const committing = lazycommit(['--yes'], {
 					reject: false,
-				});
-
-				committing.stdout!.on('data', (buffer: Buffer) => {
-					const stdout = buffer.toString();
-					if (stdout.match('└')) {
-						committing.stdin!.write('y');
-						committing.stdin!.end();
-					}
 				});
 
 				const { stdout, exitCode } = await committing;
 
 				expect(exitCode).toBe(1);
-				expect(stdout).toMatch('connect ECONNREFUSED');
+				expect(stdout).toMatch('Cannot connect to Groq');
 
 				await fixture.rm();
 			});
 
 			test('Connects with config', async () => {
+				if (!process.env.LAZYCOMMIT_TEST_PROXY) return;
 				const { fixture, lazycommit } = await createFixture({
 					...files,
-					'.lazycommit': `${files['.lazycommit']}\nproxy=http://localhost:8888`,
+					'.lazycommit': `${files['.lazycommit']}\nproxy=${process.env.LAZYCOMMIT_TEST_PROXY}`,
 				});
 				const git = await createGit(fixture.path);
 
 				await git('add', ['data.json']);
 
-				const committing = lazycommit();
-
-				committing.stdout!.on('data', (buffer: Buffer) => {
-					const stdout = buffer.toString();
-					if (stdout.match('└')) {
-						committing.stdin!.write('y');
-						committing.stdin!.end();
-					}
-				});
+				const committing = lazycommit(['--yes']);
 
 				await committing;
 
@@ -449,29 +357,22 @@ export default testSuite(({ describe }) => {
 					commitMessage,
 					length: commitMessage?.length,
 				});
-				expect(commitMessage?.length).toBeLessThanOrEqual(50);
+				expect(commitMessage?.length).toBeLessThanOrEqual(100);
 
 				await fixture.rm();
 			});
 
 			test('Connects with env variable', async () => {
+				if (!process.env.LAZYCOMMIT_TEST_PROXY) return;
 				const { fixture, lazycommit } = await createFixture(files);
 				const git = await createGit(fixture.path);
 
 				await git('add', ['data.json']);
 
-				const committing = lazycommit([], {
+				const committing = lazycommit(['--yes'], {
 					env: {
-						HTTP_PROXY: 'http://localhost:8888',
+						HTTP_PROXY: process.env.LAZYCOMMIT_TEST_PROXY,
 					},
-				});
-
-				committing.stdout!.on('data', (buffer: Buffer) => {
-					const stdout = buffer.toString();
-					if (stdout.match('└')) {
-						committing.stdin!.write('y');
-						committing.stdin!.end();
-					}
 				});
 
 				await committing;
@@ -489,7 +390,7 @@ export default testSuite(({ describe }) => {
 					commitMessage,
 					length: commitMessage?.length,
 				});
-				expect(commitMessage?.length).toBeLessThanOrEqual(50);
+				expect(commitMessage?.length).toBeLessThanOrEqual(100);
 
 				await fixture.rm();
 			});

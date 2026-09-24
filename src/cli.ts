@@ -49,12 +49,18 @@ cli(
 				description: 'Type of commit message to generate',
 				alias: 't',
 			},
-			split: {
-				type: Boolean,
-				description: 'Create multiple commits by grouping files logically',
-				alias: 's',
-				default: false,
-			},
+			model: { type: String, description: 'Groq model to use' },
+			locale: { type: String, description: 'Language of the generated subject' },
+			maxLength: { type: Number, description: 'Maximum subject length (20–200)' },
+			maxDiffChars: { type: Number, description: 'Diff context budget (1000–100000 characters)' },
+			timeout: { type: Number, description: 'Request timeout in milliseconds' },
+			scope: { type: String, description: 'Explicit conventional commit scope' },
+			context: { type: String, description: 'Additional context about the change' },
+			dryRun: { type: Boolean, description: 'Print suggestions without committing or staging', default: false },
+			previewDiff: { type: Boolean, description: 'Print analysis context locally without calling AI', default: false },
+			thorough: { type: Boolean, description: 'Analyze every diff batch before generating (uses more requests)', default: false },
+			yes: { type: Boolean, alias: 'y', description: 'Commit the first suggestion without prompting', default: false },
+			includeGenerated: { type: Boolean, description: 'Include generated and lockfile patches in analysis', default: false },
 		},
 
 		commands: [configCommand, hookCommand],
@@ -69,14 +75,20 @@ cli(
 		if (isCalledFromGitHook) {
 			prepareCommitMessageHook();
 		} else {
-			lazycommit(
-				argv.flags.generate,
-				argv.flags.exclude,
-				argv.flags.all,
-				argv.flags.type,
-				argv.flags.split,
-				rawArgv
-			);
+			lazycommit({
+				config: {
+					generate: argv.flags.generate?.toString(), type: argv.flags.type,
+					model: argv.flags.model, locale: argv.flags.locale,
+					'max-length': argv.flags.maxLength?.toString(),
+					'max-diff-chars': argv.flags.maxDiffChars?.toString(),
+					timeout: argv.flags.timeout?.toString(), scope: argv.flags.scope, context: argv.flags.context,
+				},
+				exclude: argv.flags.exclude, all: argv.flags.all,
+				dryRun: argv.flags.dryRun, previewDiff: argv.flags.previewDiff, thorough: argv.flags.thorough, yes: argv.flags.yes,
+				includeGenerated: argv.flags.includeGenerated,
+				// cleye removes recognized options from this array in place.
+				gitArgs: rawArgv,
+			});
 		}
 	},
 	rawArgv

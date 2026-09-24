@@ -25,7 +25,11 @@ export default command(
 
 			if (mode === 'set') {
 				await setConfigs(
-					keyValues.map((keyValue) => keyValue.split('=') as [string, string])
+					keyValues.map((keyValue): [string, string] => {
+						const separator = keyValue.indexOf('=');
+						if (separator < 1) throw new KnownError('Expected <key>=<value>');
+						return [keyValue.slice(0, separator), keyValue.slice(separator + 1)];
+					})
 				);
 				return;
 			}

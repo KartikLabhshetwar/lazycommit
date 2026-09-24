@@ -38,7 +38,7 @@ const configParsers = {
 		parseAssert('locale', locale, 'Cannot be empty');
 		parseAssert(
 			'locale',
-			/^[a-z-]+$/i.test(locale),
+			/^[a-z]{2,8}(?:[-_][a-z0-9]{2,8})*$/i.test(locale),
 			'Must be a valid locale (letters and dashes/underscores). You can consult the list of codes in: https://wikipedia.org/wiki/List_of_ISO_639-1_codes'
 		);
 		return locale;
@@ -74,15 +74,31 @@ const configParsers = {
 			return undefined;
 		}
 
-		parseAssert('proxy', /^https?:\/\//.test(url), 'Must be a valid URL');
+		let valid = false;
+		try { valid = ['http:', 'https:'].includes(new URL(url).protocol); } catch {}
+		parseAssert('proxy', valid, 'Must be a valid HTTP/HTTPS URL');
 
 		return url;
+	},
+	scope(value = '') {
+		parseAssert('scope', value === '' || /^[a-zA-Z0-9][a-zA-Z0-9._/-]{0,39}$/.test(value), 'Use up to 40 letters, digits, dots, slashes, underscores or hyphens');
+		return value;
+	},
+	context(value = '') {
+		parseAssert('context', value.length <= 2000 && !/[\r\n\x00]/.test(value), 'Use one line of at most 2000 characters');
+		return value;
+	},
+	'max-diff-chars'(value = '16000') {
+		const parsed = Number(value);
+		parseAssert('max-diff-chars', /^\d+$/.test(value) && parsed >= 1000 && parsed <= 100000, 'Must be an integer between 1000 and 100000');
+		return parsed;
 	},
 	model(model?: string) {
 		if (!model || model.length === 0) {
 			return 'openai/gpt-oss-20b';
 		}
 
+		parseAssert('model', /^\S+$/.test(model), 'Cannot contain whitespace');
 		return model;
 	},
 	timeout(timeout?: string) {
@@ -93,7 +109,7 @@ const configParsers = {
 		parseAssert('timeout', /^\d+$/.test(timeout), 'Must be an integer');
 
 		const parsed = Number(timeout);
-		parseAssert('timeout', parsed >= 500, 'Must be greater than 500ms');
+		parseAssert('timeout', Number.isSafeInteger(parsed) && parsed >= 500 && parsed <= 300_000, 'Must be between 500 and 300000ms');
 
 		return parsed;
 	},
@@ -122,7 +138,7 @@ const configParsers = {
 
 type ConfigKeys = keyof typeof configParsers;
 
-type RawConfig = {
+export type RawConfig = {
 	[key in ConfigKeys]?: string;
 };
 
@@ -152,16 +168,20 @@ export const getConfig = async (
 	for (const key of Object.keys(configParsers) as ConfigKeys[]) {
 		const parser = configParsers[key];
 		const value = cliConfig?.[key] ?? config[key];
+		const input = value === undefined ? undefined : String(value);
 
 		if (suppressErrors) {
 			try {
-				parsedConfig[key] = parser(value);
+				parsedConfig[key] = parser(input);
 			} catch {}
 		} else {
-			parsedConfig[key] = parser(value);
+			parsedConfig[key] = parser(input);
 		}
 	}
 
+	if (!suppressErrors && parsedConfig.scope && parsedConfig.type !== 'conventional') {
+		throw new KnownError('A scope requires --type conventional.');
+	}
 	return parsedConfig as ValidConfig;
 };
 
@@ -173,9 +193,11 @@ export const setConfigs = async (keyValues: [key: string, value: string][]) => {
 			throw new KnownError(`Invalid config property: ${key}`);
 		}
 
+		if (typeof value !== 'string') throw new KnownError(`Expected ${key}=<value>`);
 		const parsed = configParsers[key as ConfigKeys](value);
 		config[key as ConfigKeys] = parsed as any;
 	}
 
-	await fs.writeFile(configPath, ini.stringify(config), 'utf8');
+	await fs.writeFile(configPath, ini.stringify(config), { encoding: 'utf8', mode: 0o600 });
+	await fs.chmod(configPath, 0o600);
 };

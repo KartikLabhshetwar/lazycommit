@@ -93,7 +93,7 @@ export default testSuite(({ describe }) => {
 
 			test('updates config', async () => {
 				const defaultConfig = await lazycommit(['config', 'get', 'max-length']);
-				expect(defaultConfig.stdout).toBe('max-length=50');
+				expect(defaultConfig.stdout).toBe('max-length=100');
 
 				const maxLength = 'max-length=60';
 				await lazycommit(['config', 'set', maxLength]);

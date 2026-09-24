@@ -96,22 +96,26 @@ node ./dist/cli.mjs
 
 ### Running tests
 
-Testing requires passing in `GROQ_API_KEY` as an environment variable:
+The default test command runs deterministic regression checks against a local mock API. To also run live Groq integration tests, pass `GROQ_API_KEY`:
 
 ```sh
 GROQ_API_KEY=<your GROQ key> pnpm test
 ```
 
-You can still run tests that don't require `GROQ_API_KEY` but will not test the main functionality:
+Build first, then run offline tests without an API key:
 
 ```sh
+pnpm build
 pnpm test
 ```
+
+Proxy integration tests additionally require `LAZYCOMMIT_TEST_PROXY` pointing to a running HTTP/HTTPS proxy.
 
 ### Test structure
 
 The project uses [manten](https://github.com/privatenumber/manten) for testing. Tests are organized in the `tests/` directory:
 
+- `tests/regressions.ts` - Offline diff, generation, CLI, and hook regression checks
 - `tests/specs/cli/` - CLI command tests
 - `tests/specs/groq/` - Groq API integration tests
 - `tests/specs/config.ts` - Configuration tests
@@ -246,7 +250,7 @@ pnpm dlx 'KartikLabhshetwar/lazycommit#npm/develop'
 ### Key files
 
 - `src/cli.ts` - Main CLI entry point using cleye
-- `src/commands/lazycommit.ts` - Core commit message generation with smart grouping logic
+- `src/commands/lazycommit.ts` - Commit review, preview, regeneration, and safe commit flow
 - `src/utils/groq.ts` - Groq API integration with retry/fallback mechanisms
 - `src/utils/config.ts` - Configuration management
 - `src/utils/git.ts` - Git operations and file analysis utilities
@@ -271,11 +275,11 @@ pnpm dlx 'KartikLabhshetwar/lazycommit#npm/develop'
 
 ### Architecture highlights
 
-- **Smart file grouping**: Automatically groups files by conventional commit types and scopes
-- **Token-safe AI integration**: Uses compact git summaries instead of full diffs to avoid rate limits
-- **Retry mechanisms**: Exponential backoff and model fallback for robust API handling
-- **Multi-commit workflow**: Creates logical, atomic commits for large changes
-- **Enhanced file classification**: Context-aware file type detection using git patterns
+- Shared snapshot-based diff analysis for CLI and hooks, including renames and binary files
+- Bounded code samples in normal mode; batched analysis with `--thorough`
+- Validated AI subjects, a bounded format retry, and SDK retries for transient errors
+- Explicit noninteractive commits and read-only preview modes
+- No new runtime dependencies for the analysis pipeline
 
 ## Getting help
 

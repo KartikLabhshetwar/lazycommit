@@ -1,381 +1,331 @@
 <div align="center">
-  <div>
-    <h1 align="center">lazycommit</h1>
-<img width="2816" height="1536" alt="lazycommit" src="https://github.com/user-attachments/assets/ee0419ef-2461-4b45-8509-973f3bb0f55c" />
-
-  </div>
-	<p>A CLI that writes your git commit messages for you with AI using Groq. Never write a commit message again.</p>
-	<a href="https://www.npmjs.com/package/lazycommitz"><img src="https://img.shields.io/npm/v/lazycommitt" alt="Current version"></a>
-	<a href="https://github.com/KartikLabhshetwar/lazycommit"><img src="https://img.shields.io/github/stars/KartikLabhshetwar/lazycommit" alt="GitHub stars"></a>
-	<a href="https://github.com/KartikLabhshetwar/lazycommit/blob/main/LICENSE"><img src="https://img.shields.io/npm/l/lazycommitt" alt="License"></a>
+  <h1>lazycommit</h1>
+  <p>Turn staged changes into commit messages you can review, edit, and use.</p>
+  <img width="800" alt="lazycommit" src="https://github.com/user-attachments/assets/ee0419ef-2461-4b45-8509-973f3bb0f55c" />
+  <p>
+    <a href="https://www.npmjs.com/package/lazycommitt"><img src="https://img.shields.io/npm/v/lazycommitt" alt="npm version" /></a>
+    <a href="https://github.com/KartikLabhshetwar/lazycommit/blob/main/LICENSE"><img src="https://img.shields.io/npm/l/lazycommitt" alt="License" /></a>
+  </p>
+  <p>
+    <a href="https://lazycommit.vercel.app">Website</a> ·
+    <a href="https://github.com/KartikLabhshetwar/lazycommit/issues">Report an issue</a> ·
+    <a href="https://peerlist.io/code_kartik/project/lazycommit">Peerlist</a>
+  </p>
 </div>
 
----
+Lazycommit is a TypeScript CLI that uses Git and Groq to generate commit subjects from your staged changes. Choose a suggestion, edit it, regenerate it, or cancel before committing. Use `lazycommit` or its shorter alias, `lzc`.
 
-<div align="center">
-  <a href="https://peerlist.io/code_kartik/project/lazycommit" ><img width="400" height="128" alt="LazyCommit" src="https://github.com/user-attachments/assets/5d54d238-38f4-44f2-b253-3959b2487987" /></a>
-</div>
+- **Analyze large changes:** use bounded code samples or opt into deeper analysis with `--thorough`.
+- **Control the result:** choose the model, language, format, scope, length, and additional context.
+- **Preview first:** inspect the diff context locally or generate messages without committing.
+- **Fit your workflow:** use interactive review, an explicit noninteractive mode, or a Git hook.
 
+This README describes the current source. npm and Homebrew install published releases; to try the changes in this checkout, follow [Development](#development).
 
+## Quick start
 
-## Setup
+You need Git, Node.js 20.5 or newer, and a [Groq API key](https://console.groq.com/keys) for message generation.
 
-> The minimum supported version of Node.js is v18. Check your Node.js version with `node --version`.
+```sh
+npm install -g lazycommitt
+lazycommit config set GROQ_API_KEY="gsk_your_key_here"
+```
 
-1. Install _lazycommit_:
+The npm package is named **`lazycommitt`**; the commands are **`lazycommit`** and **`lzc`**.
 
-   ```sh
-   npm install -g lazycommitt
-   ```
+Inside your repository, stage the changes you want to commit:
 
-### Install via Homebrew (macOS)
+```sh
+git add src/ README.md
+lazycommit
+```
 
-Install via Homebrew tap:
+The review menu offers **Use as-is**, **Edit**, **Regenerate**, and **Cancel**. Use as-is commits immediately. Editing shows a final confirmation before committing.
+
+To try generation without creating a commit:
+
+```sh
+lazycommit --dry-run
+```
+
+### Homebrew
 
 ```sh
 brew tap KartikLabhshetwar/lazycommit https://github.com/KartikLabhshetwar/lazycommit
 brew install lazycommit
 ```
 
-Upgrade:
+### Upgrade
 
 ```sh
+npm update -g lazycommitt
+# Or, for a Homebrew installation:
 brew update
 brew upgrade lazycommit
 ```
 
-2. Retrieve your API key from [Groq Console](https://console.groq.com/keys)
+Check your installed version with `lazycommit --version`.
 
-   > Note: If you haven't already, you'll have to create an account and get your API key.
+## Common workflows
 
-3. Set the key so lazycommit can use it:
+### Conventional commits
 
-   ```sh
-   lazycommit config set GROQ_API_KEY=<your token>
-   ```
-
-   This will create a `.lazycommit` file in your home directory.
-
-### Upgrading
-
-Check the installed version with:
-
-```
-lazycommit --version
-```
-
-If it's not the [latest version](https://github.com/KartikLabhshetwar/lazycommit/releases/latest), run:
+Plain subjects are the default. Request a conventional subject and, optionally, an explicit scope:
 
 ```sh
-npm update -g lazycommitt
+lazycommit --type conventional
+lazycommit --type conventional --scope api --max-length 72
 ```
 
-## Usage
+Example format: `fix(api): reject requests with an empty token`.
 
-### CLI mode
-
-You can call `lazycommit` directly to generate a commit message for your staged changes:
+### Multiple suggestions
 
 ```sh
-git add <files...>
-lazycommit
+lazycommit --generate 3
 ```
 
-`lazycommit` passes down unknown flags to `git commit`, so you can pass in [`commit` flags](https://git-scm.com/docs/git-commit).
+Choose a suggestion, then review or edit it. Each requested suggestion uses a separate generation request. Duplicates are removed, and valid suggestions are retained if other requests fail, so fewer than the requested number may be returned.
 
-For example, you can stage all changes in tracked files as you commit:
+### Give the model useful context
+
+Explain the intent that a diff alone may not reveal:
 
 ```sh
-lazycommit --all # or -a
+lazycommit --context "Preserve existing login behavior while replacing session storage"
+lazycommit --locale ja --type conventional
 ```
 
-> 👉 **Tip:** Use the `lzc` alias if `lazycommit` is too long for you.
-
-#### Generate multiple recommendations
-
-Sometimes the recommended commit message isn't the best so you want it to generate a few to pick from. You can generate multiple commit messages at once by passing in the `--generate <i>` flag, where 'i' is the number of generated messages:
+### Preview the analysis or output
 
 ```sh
-lazycommit --generate <i> # or -g <i>
+# Inspect the diff context locally; no API key or network request required.
+lazycommit --preview-diff
+
+# Generate suggestions through Groq without committing.
+lazycommit --dry-run --generate 3
 ```
 
-> Warning: this uses more tokens, meaning it costs more.
+`--dry-run` writes only the generated subjects to stdout, one per line. Errors go to stderr. Both preview modes require changes to be staged first and reject `--all`.
 
-#### Generating Conventional Commits
-
-If you'd like to generate [Conventional Commits](https://conventionalcommits.org/), you can use the `--type` flag followed by `conventional`. This will prompt `lazycommit` to format the commit message according to the Conventional Commits specification:
+### Stage tracked changes or skip prompts
 
 ```sh
-lazycommit --type conventional # or -t conventional
+# Stage modified and deleted tracked files, then review the message.
+lazycommit --all
+
+# Commit the first valid suggestion without interactive review.
+lazycommit --yes
 ```
 
-This feature can be useful if your project follows the Conventional Commits standard or if you're using tools that rely on this commit format.
+`--all` does not add untracked files. Without an interactive terminal, choose `--yes`, `--dry-run`, or `--preview-diff` explicitly.
 
-#### Review, edit, and confirm messages
+## Better context for large changes
 
-Lazycommit now lets you review the generated message, optionally edit it, and then confirm before it is committed.
-
-- You'll see a menu: Use as-is, Edit, or Cancel
-- If you choose Use as-is, it commits immediately without additional prompts
-- If you choose Edit, you can modify the message; then you'll be asked to confirm the final message before committing
-
-Example (single commit):
+Normal mode includes file statistics and the full included patch when it fits. Larger patches use bounded samples with omission markers. The default context budget is 16,000 characters:
 
 ```sh
-git add .
-lazycommit
-# Review generated commit message:
-#   feat: add lazycommit command
-# → Choose "Use as-is" to commit immediately
-# → Or choose "Edit" to modify, then confirm the final message before commit
+lazycommit --max-diff-chars 24000
 ```
 
-#### Exclude files from analysis
-
-You can exclude specific files from AI analysis using the `--exclude` flag:
+For a change spread across many files or substantial code edits, use thorough mode:
 
 ```sh
-lazycommit --exclude package-lock.json --exclude dist/
+lazycommit --thorough --type conventional --generate 3
+lazycommit --thorough --dry-run --context "Migrate authentication to the new session API"
 ```
 
-#### Handling large diffs
+Thorough mode:
 
-For large commits with many files, lazycommit automatically stays within API limits and generates relevant commit messages:
+1. Splits the included diff and file statistics into batches of up to 16,000 characters.
+2. Asks the model to summarize each batch, retaining concrete behavior changes and affected components.
+3. Combines the notes, summarizing them further if necessary.
+4. Generates and validates the final commit suggestions from those notes.
 
-- **Smart summarization**: Uses `git diff --cached --numstat` to create compact summaries of all changes
-- **Context snippets**: Includes truncated diff snippets from top changed files for better context
-- **Token-safe processing**: Keeps prompts small while maintaining accuracy for 20+ file changes
-- **Single commit**: Always generates one commit message, no matter how many files are staged
-- **Enhanced analysis**: Uses improved prompts and smart truncation for better commit message quality
+It uses more API requests and takes longer. The input limit is 1.6 million characters; beyond that, exclude unnecessary files or stage smaller commits. `--max-diff-chars` controls normal mode only. Character budgets are not exact token counts, and API limits can still apply.
 
-### Git hook
+To inspect the batches before using the API:
 
-You can also integrate _lazycommit_ with Git via the [`prepare-commit-msg`](https://git-scm.com/docs/githooks#_prepare_commit_msg) hook. This lets you use Git like you normally would, and edit the commit message before committing. The hook uses the same enhanced analysis and quality improvements as the CLI mode.
+```sh
+lazycommit --preview-diff --thorough
+```
 
-#### Install
+### Generated files and exclusions
 
-In the Git repository you want to install the hook in:
+Lockfiles, minified files, and common build directories are represented in the statistics, but their patches are omitted by default. Include those patches when they matter:
+
+```sh
+lazycommit --include-generated
+```
+
+Exclude paths from both statistics and code context with repeatable, repository-root Git pathspecs:
+
+```sh
+lazycommit --exclude 'dist/**' --exclude '*.log'
+```
+
+**Exclusions affect analysis only. Excluded files that are staged will still be committed.** Binary changes and renames are identified in the statistics; binary contents are not interpreted.
+
+## CLI reference
+
+Run `lazycommit --help` for the installed version's options.
+
+| Option | Behavior | Default / limits |
+| --- | --- | --- |
+| `--generate`, `-g` | Number of suggestions to request | `1`; range `1–5` |
+| `--type`, `-t` | Plain or conventional subject | `""` or `conventional` |
+| `--scope` | Require an explicit conventional scope | Empty; up to 40 characters; requires conventional mode |
+| `--context` | Additional intent or constraints | Empty; one line, up to 2,000 characters |
+| `--locale` | Language of the subject | `en`; e.g. `ja`, `pt-BR` |
+| `--model` | Groq model identifier | `openai/gpt-oss-20b` |
+| `--max-length` | Maximum generated subject length | `100`; range `20–200` Unicode characters |
+| `--max-diff-chars` | Normal-mode diff context budget | `16000`; range `1000–100000` |
+| `--timeout` | Timeout per API request, in milliseconds | `10000`; range `500–300000` |
+| `--thorough` | Analyze every included diff batch before generation | Off |
+| `--include-generated` | Include generated-file and lockfile patches | Off |
+| `--exclude`, `-x` | Exclude a pathspec from analysis | Repeatable |
+| `--all`, `-a` | Stage modifications and deletions in tracked files | Off |
+| `--dry-run` | Generate subjects without committing | Off |
+| `--preview-diff` | Print diff context without calling the API | Off |
+| `--yes`, `-y` | Commit the first suggestion without prompts | Off |
+| `--help`, `-h` | Show usage | — |
+| `--version` | Show installed version | — |
+
+### Git options
+
+Supported Git options include `--signoff` (`-s`), `--no-signoff`, `--no-verify` (`-n`), `--author`, `--date`, `--trailer`, `--cleanup`, `--gpg-sign` (`-S`), `--no-gpg-sign`, `--quiet` (`-q`), and `--verbose` (`-v`).
+
+```sh
+lazycommit --type conventional --signoff
+lazycommit --author="Your Name <you@example.com>"
+lazycommit --gpg-sign=YOUR_KEY_ID
+```
+
+Options that replace the message or change which content is committed, such as `-m`, `--amend`, and path arguments, are rejected. Use `git commit` directly for those workflows. The previous nonfunctional `--split` option has been removed; `-s` now passes through to Git's sign-off option.
+
+## Configuration
+
+Settings are stored in `~/.lazycommit` in INI format. Set or read multiple values in one command:
+
+```sh
+lazycommit config set type=conventional max-length=72 generate=3
+lazycommit config get model type max-length generate
+lazycommit config set context="Preserve backward compatibility"
+```
+
+Persistable keys are `GROQ_API_KEY`, `proxy`, `model`, `locale`, `generate`, `type`, `scope`, `context`, `timeout`, and `max-length` / `max-diff-chars`. Their defaults and limits match the CLI reference above. Workflow switches such as `--thorough` and `--yes` are per-invocation options.
+
+Clear an optional setting by assigning an empty value:
+
+```sh
+lazycommit config set scope= context= proxy=
+# Return to plain subjects; clear any saved conventional scope too.
+lazycommit config set type= scope=
+```
+
+CLI generation flags override saved settings. For credentials, you can also set `GROQ_API_KEY` in the environment; it overrides the saved key. Config writes request owner-only file permissions.
+
+### Proxy support
+
+```sh
+lazycommit config set proxy=http://localhost:8080
+```
+
+HTTP/HTTPS proxy environment variables override the saved proxy, in this order: `https_proxy`, `HTTPS_PROXY`, `http_proxy`, `HTTP_PROXY`.
+
+## Git hook
+
+Install the `prepare-commit-msg` hook inside a repository:
 
 ```sh
 lazycommit hook install
 ```
 
-#### Uninstall
+Then use Git normally:
 
-In the Git repository you want to uninstall the hook from:
+```sh
+git add src/
+git commit
+```
+
+The hook generates a subject for review in your Git editor. With multiple suggestions, uncomment the one you want to use. For `git commit --no-edit` with an empty message file, it uses the first suggestion.
+
+An explicit message bypasses generation:
+
+```sh
+git commit -m "Write this message myself"
+```
+
+The hook shares normal-mode analysis, saved generation settings, and message validation with the CLI. Thorough analysis is available through the CLI. The installer targets `.git/hooks/prepare-commit-msg`; it does not support custom `core.hooksPath` locations or linked-worktree hook installation.
+
+Remove it with:
 
 ```sh
 lazycommit hook uninstall
 ```
 
-#### Usage
+## How the generation works
 
-1. Stage your files and commit:
+Lazycommit snapshots the Git index and analyzes staged content, including partially staged files, without reading unstaged edits into the prompt. It sends the selected diff context and your generation instructions to Groq. `--preview-diff` performs the context-building step locally without sending it.
 
-   ```sh
-   git add <files...>
-   git commit # Only generates a message when it's not passed in
-   ```
+Generated subjects are checked for single-line output, length, and the requested format and scope. Invalid or incomplete subjects get one additional generation attempt. They are not shortened by cutting off words or recovered from the model's reasoning text. Transient API failures use the Groq SDK's retry behavior, configured for up to two retries.
 
-   > If you ever want to write your own message instead of generating one, you can simply pass one in: `git commit -m "My message"`
+Before a CLI commit, lazycommit checks that the staged tree and HEAD still match the analyzed snapshot. If either changed during generation or review, it stops so you can rerun with current content. The hook also checks for staged-tree changes before writing its result.
 
-2. Lazycommit will generate a high-quality commit message using the same enhanced analysis as the CLI mode and pass it back to Git. Git will open it with the [configured editor](https://docs.github.com/en/get-started/getting-started-with-git/associating-text-editors-with-git) for you to review/edit it.
-
-3. Save and close the editor to commit!
-
-## Configuration
-
-### Reading a configuration value
-
-To retrieve a configuration option, use the command:
-
-```sh
-lazycommit config get <key>
-```
-
-For example, to retrieve the API key, you can use:
-
-```sh
-lazycommit config get GROQ_API_KEY
-```
-
-You can also retrieve multiple configuration options at once by separating them with spaces:
-
-```sh
-lazycommit config get GROQ_API_KEY generate
-```
-
-### Setting a configuration value
-
-To set a configuration option, use the command:
-
-```sh
-lazycommit config set <key>=<value>
-```
-
-For example, to set the API key, you can use:
-
-```sh
-lazycommit config set GROQ_API_KEY=<your-api-key>
-```
-
-You can also set multiple configuration options at once by separating them with spaces, like
-
-```sh
-lazycommit config set GROQ_API_KEY=<your-api-key> generate=3 locale=en
-```
-
-### Options
-
-#### GROQ_API_KEY
-
-Required
-
-The Groq API key. You can retrieve it from [Groq Console](https://console.groq.com/keys).
-
-#### locale
-
-Default: `en`
-
-The locale to use for the generated commit messages. Consult the list of codes in: https://wikipedia.org/wiki/List_of_ISO_639-1_codes.
-
-#### generate
-
-Default: `1`
-
-The number of commit messages to generate to pick from.
-
-Note, this will use more tokens as it generates more results.
-
-#### proxy
-
-Set a HTTP/HTTPS proxy to use for requests.
-
-To clear the proxy option, you can use the command (note the empty value after the equals sign):
-
-```sh
-lazycommit config set proxy=
-```
-
-#### model
-
-Default: `openai/gpt-oss-20b`
-
-The Groq model to use for generating commit messages. Available models include:
-- `openai/gpt-oss-20b` (default) - Fast, efficient for conventional commits
-
-For conventional commit generation, the 8B instant model provides the best balance of speed and quality.
-
-#### timeout
-
-The timeout for network requests to the Groq API in milliseconds.
-
-Default: `10000` (10 seconds)
-
-```sh
-lazycommit config set timeout=20000 # 20s
-```
-
-#### max-length
-
-The maximum character length of the generated commit message.
-
-Default: `100`
-
-```sh
-lazycommit config set max-length=150
-```
-
-#### type
-
-Default: `""` (Empty string)
-
-The type of commit message to generate. Set this to "conventional" to generate commit messages that follow the Conventional Commits specification:
-
-```sh
-lazycommit config set type=conventional
-```
-
-You can clear this option by setting it to an empty string:
-
-```sh
-lazycommit config set type=
-```
-
-
-## How it works
-
-This CLI tool runs `git diff` to grab all your latest code changes, sends them to Groq's AI models, then returns the AI generated commit message.
-
-The tool uses Groq's fast inference API to provide quick and accurate commit message suggestions based on your code changes.
-
-### Large diff handling
-
-For large commits that exceed API token limits, lazycommit automatically:
-
-1. **Detects large/many-file diffs** and switches to enhanced analysis mode
-2. **Creates compact summaries** using `git diff --cached --numstat` to capture all changes efficiently
-3. **Includes context snippets** from the most changed files to provide semantic context
-4. **Generates a single commit message** that accurately reflects all changes without hitting API limits
-5. **Smart truncation** preserves sentence structure and meaning when messages approach length limits
-6. **Enhanced prompts** provide better context for AI to generate complete, professional commit messages
-
-This ensures you can commit large changes (like new features, refactoring, or initial project setup) without hitting API limits, while maintaining accuracy, relevance, and high-quality commit messages.
+Generation produces one subject line per suggestion and creates one commit. Review factual accuracy: format checks and deeper analysis cannot guarantee that an AI summary captures every important detail.
 
 ## Troubleshooting
 
-### "Request too large" error (413)
+| Problem | What to try |
+| --- | --- |
+| No staged changes | Check `git diff --cached`; stage files with `git add`, or use `--all` for tracked changes. Also check exclusions. |
+| Subject is too vague | Add `--context`, try `--thorough`, or stage related changes separately. |
+| No valid subject after retries | Increase `--max-length` or choose another model available to your Groq account with `--model`. |
+| Request too large / 413 | In normal mode, lower `--max-diff-chars`. Exclude unnecessary files or stage smaller commits in either mode. |
+| Rate limit / 429 | Wait before retrying, reduce `--generate`, or leave thorough mode off. |
+| Request timed out | Increase `--timeout`, e.g. `--timeout 30000`, and check connectivity. |
+| Authentication / 401 or 403 | Check your configured API key and the model permissions for that key. |
+| Staged content changed during review | Rerun lazycommit to analyze the current index. |
+| Unknown option after installation | Check `lazycommit --version` and `--help`; build this checkout for source features not in your installed release. |
 
-If you get a 413 error, your diff is too large for the API. Try these solutions:
+## Development
 
-1. **Exclude build artifacts**:
-   ```sh
-   lazycommit --exclude "dist/**" --exclude "node_modules/**" --exclude ".next/**"
-   ```
+The CLI is built with **TypeScript and Node.js**. It uses **cleye** for argument parsing, **@clack/prompts** for terminal interaction, **execa** to run Git, and **groq-sdk** for generation. **pkgroll** bundles the executable. The analysis changes reuse existing dependencies.
 
-2. **Use a different model**:
-   ```sh
-   lazycommit config set model "llama-3.1-70b-versatile"
-   ```
+```sh
+git clone https://github.com/KartikLabhshetwar/lazycommit.git
+cd lazycommit
+# Use the Node version in .nvmrc and pnpm 10.15.0.
+pnpm install
+pnpm type-check
+pnpm build
+pnpm test
+```
 
-3. **Commit in smaller batches**:
-   ```sh
-   git add src/  # Stage only source files
-   lazycommit
-   git add docs/ # Then stage documentation
-   lazycommit
-   ```
+Run the built CLI from the checkout:
 
-### No commit messages generated
+```sh
+node dist/cli.mjs --help
+node dist/cli.mjs --thorough --dry-run --type conventional --generate 3
+```
 
-- Check your API key: `lazycommit config get GROQ_API_KEY`
-- Verify you have staged changes: `git status`
-- Try excluding large files or using a different model
+The second command needs staged changes and a configured Groq key. To use this build in another repository, run it by its absolute path from that repository.
 
-### Slow performance with large diffs
+Offline regression checks use temporary Git repositories and a local mock API to exercise diff handling, options, response validation, commits, hooks, and thorough analysis. Live Groq tests run when `GROQ_API_KEY` is set. Proxy integration tests additionally require `LAZYCOMMIT_TEST_PROXY` pointing to a running proxy.
 
-- **Use the GPT-OSS-20B model** (default): `lazycommit config set model "openai/gpt-oss-20b"`
-- Exclude unnecessary files: `lazycommit --exclude "*.log" --exclude "*.tmp"`
-- Use the built-in large diff handling for better context and accuracy
-- Lower generate count: `lazycommit config set generate=1` (default)
-- Reduce timeout: `lazycommit config set timeout=5000` for faster failures
+Core implementation:
 
-## Why Groq?
+| File | Responsibility |
+| --- | --- |
+| [`src/utils/git.ts`](src/utils/git.ts) | Index snapshots, statistics, samples, and analysis batches |
+| [`src/utils/groq.ts`](src/utils/groq.ts) | Batch summaries, generation, response validation, and API errors |
+| [`src/utils/prompt.ts`](src/utils/prompt.ts) | Message format and content instructions |
+| [`src/commands/lazycommit.ts`](src/commands/lazycommit.ts) | Review, editing, regeneration, previews, and committing |
+| [`src/utils/config.ts`](src/utils/config.ts) | Persistent settings and validation |
+| [`tests/regressions.ts`](tests/regressions.ts) | Offline regression checks |
 
-- **Fast**: Groq provides ultra-fast inference speeds, especially with the 8B instant model
-- **Cost-effective**: More affordable than traditional AI APIs
-- **Open source models**: Uses leading open-source language models
-- **Reliable**: High uptime and consistent performance
-- **Optimized for commits**: The 8B instant model is perfectly sized for conventional commit generation
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow.
 
-## Maintainers
+## Maintainer and license
 
-- **Kartik Labhshetwar**: [@KartikLabhshetwar](https://github.com/KartikLabhshetwar)
-
-## Contributing
-
-If you want to help fix a bug or implement a feature in [Issues](https://github.com/KartikLabhshetwar/lazycommit/issues), checkout the [Contribution Guide](CONTRIBUTING.md) to learn how to setup and test the project.
-
-## License
-
-This project is licensed under the Apache-2.0 License - see the [LICENSE](LICENSE) file for details.
+Maintained by [Kartik Labhshetwar](https://github.com/KartikLabhshetwar). Licensed under [Apache-2.0](LICENSE).

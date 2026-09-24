@@ -1,323 +1,111 @@
 import { execa } from 'execa';
-import { black, dim, green, red, bgCyan } from 'kolorist';
-import {
-	intro,
-	outro,
-	spinner,
-	select,
-	confirm,
-	isCancel,
-    text,
-} from '@clack/prompts';
-import {
-    assertGitRepo,
-    getStagedDiff,
-    getDetectedMessage,
-    getDiffSummary,
-    buildCompactSummary,
-} from '../utils/git.js';
-import { getConfig } from '../utils/config.js';
-import { generateCommitMessageFromSummary } from '../utils/groq.js';
-import { generatePrompt } from '../utils/prompt.js';
+import { intro, outro, spinner, select, confirm, isCancel, text } from '@clack/prompts';
+import { assertGitRepo, getStagedDiff, getDetectedMessage, getIndexTree, hasStagedChanges } from '../utils/git.js';
+import { getConfig, type RawConfig } from '../utils/config.js';
+import { generateMessages, analyzeDiff } from '../utils/groq.js';
 import { KnownError, handleCliError } from '../utils/error.js';
 
-
-// Build lightweight per-file diff snippets to give semantic context without huge payloads
-const buildDiffSnippets = async (
-    files: string[],
-    perFileMaxLines: number = 30,
-    totalMaxChars: number = 4000
-): Promise<string> => {
-    try {
-        const targetFiles = files.slice(0, 5);
-        const parts: string[] = [];
-        let remaining = totalMaxChars;
-        for (const f of targetFiles) {
-            const { stdout } = await execa('git', ['diff', '--cached', '--unified=0', '--', f]);
-            if (!stdout) continue;
-            const lines = stdout.split('\n').filter(Boolean);
-            const picked: string[] = [];
-            let count = 0;
-            for (const line of lines) {
-                const isHunk = line.startsWith('@@');
-                const isChange = (line.startsWith('+') || line.startsWith('-')) && !line.startsWith('+++') && !line.startsWith('---');
-                if (isHunk || isChange) {
-                    picked.push(line);
-                    count++;
-                    if (count >= perFileMaxLines) break;
-                }
-            }
-            if (picked.length > 0) {
-                const block = [`# ${f}`, ...picked].join('\n');
-                if (block.length <= remaining) {
-                    parts.push(block);
-                    remaining -= block.length;
-                } else {
-                    parts.push(block.slice(0, Math.max(0, remaining)));
-                    remaining = 0;
-                }
-            }
-            if (remaining <= 0) break;
-        }
-        if (parts.length === 0) return '';
-        return ['Context snippets (truncated):', ...parts].join('\n');
-    } catch {
-        return '';
-    }
+type Options = {
+	config: RawConfig;
+	exclude: string[];
+	all: boolean;
+	dryRun: boolean;
+	previewDiff: boolean;
+	thorough: boolean;
+	yes: boolean;
+	includeGenerated: boolean;
+	gitArgs: string[];
 };
 
-export const buildSingleCommitPrompt = async (
-    files: string[],
-    compactSummary: string,
-    maxLength: number
-): Promise<string> => {
-    const snippets = await buildDiffSnippets(files, 30, 3000);
-    return `Analyze the following git changes and generate a single, complete conventional commit message.
-
-CHANGES SUMMARY:
-${compactSummary}
-
-${snippets ? `\nCODE CONTEXT:\n${snippets}\n` : ''}
-
-TASK: Write ONE conventional commit message that accurately describes what was changed.
-
-REQUIREMENTS:
-- Format: type: subject (NO scope, just type and subject)
-- Maximum ${maxLength} characters
-- Be specific and descriptive
-- Use imperative mood, present tense
-- Include the main component/area affected
-- Complete the message - never truncate mid-sentence
-
-COMMIT TYPE GUIDELINES:
-- feat: NEW user-facing features only
-- refactor: code improvements, restructuring, internal changes
-- fix: bug fixes that resolve issues
-- docs: documentation changes only
-- chore: config updates, maintenance, dependencies
-
-EXAMPLES (correct format - NO scope, just type and subject):
-- feat: add user login with OAuth integration
-- fix: resolve memory leak in image processing service
-- refactor: improve message generation with better prompts
-- refactor: increase default max-length from 50 to 100
-- docs: update installation and configuration guide
-- test: add unit tests for JWT token validation
-- chore: update axios to v1.6.0 for security patches
-
-WRONG FORMAT (do not use):
-- feat(auth): add user login
-- refactor(commit): improve prompts
-
-Return only the commit message line, no explanations.`;
+export const validateGitArgs = (args: string[]) => {
+	// Only forward metadata options: content/path options invalidate the analyzed snapshot.
+	for (let i = 0; i < args.length; i++) {
+		const arg = args[i];
+		if (/^(--signoff|--no-signoff|-s|--no-verify|-n|--gpg-sign|--no-gpg-sign|-S|--quiet|-q|--verbose|-v)$/.test(arg)) continue;
+		if (/^(--author|--date|--cleanup|--trailer)$/.test(arg)) {
+			if (!args[++i] || args[i].startsWith('-')) throw new KnownError(`Missing value for ${arg}`);
+			continue;
+		}
+		if (/^(--author|--date|--cleanup|--trailer|--gpg-sign)=.+$/.test(arg) || /^-S.+$/.test(arg)) continue;
+		throw new KnownError(`Unsupported git argument: ${arg}. Stage the intended files first. Use git commit directly for amend, message, or path options.`);
+	}
 };
 
-
-
-const ASCII_LOGO = `╔──────────────────────────────────────────────────────────────────────────────────────╗
-│                                                                                      │
-│ ██╗      █████╗ ███████╗██╗   ██╗ ██████╗ ██████╗ ███╗   ███╗███╗   ███╗██╗████████╗ │
-│ ██║     ██╔══██╗╚══███╔╝╚██╗ ██╔╝██╔════╝██╔═══██╗████╗ ████║████╗ ████║██║╚══██╔══╝ │
-│ ██║     ███████║  ███╔╝  ╚████╔╝ ██║     ██║   ██║██╔████╔██║██╔████╔██║██║   ██║    │
-│ ██║     ██╔══██║ ███╔╝    ╚██╔╝  ██║     ██║   ██║██║╚██╔╝██║██║╚██╔╝██║██║   ██║    │
-│ ███████╗██║  ██║███████╗   ██║   ╚██████╗╚██████╔╝██║ ╚═╝ ██║██║ ╚═╝ ██║██║   ██║    │
-│ ╚══════╝╚═╝  ╚═╝╚══════╝   ╚═╝    ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝     ╚═╝╚═╝   ╚═╝    │
-│                                                                                      │
-╚──────────────────────────────────────────────────────────────────────────────────────╝`;
-
-export default async (
-	generate: number | undefined,
-	excludeFiles: string[],
-	stageAll: boolean,
-	commitType: string | undefined,
-	splitCommits: boolean,
-	rawArgv: string[]
-) =>
-	(async () => {
-		console.log(ASCII_LOGO);
-		console.log();
-		intro(bgCyan(black(' lazycommit ')));
+export default async (options: Options) => {
+	try {
 		await assertGitRepo();
-
-		const detectingFiles = spinner();
-
-		if (stageAll) {
-			// This should be equivalent behavior to `git commit --all`
-			await execa('git', ['add', '--update']);
-		}
-
-		detectingFiles.start('Detecting staged files');
-		const staged = await getStagedDiff(excludeFiles);
-
-		if (!staged) {
-			detectingFiles.stop('Detecting staged files');
-			throw new KnownError(
-				'No staged changes found. Stage your changes manually, or automatically stage all changes with the `--all` flag.'
-			);
-		}
-
-		// Check if diff is very large and/or many files for enhanced analysis
-		const diffSummary = await getDiffSummary(excludeFiles);
-		const isLargeDiff = staged.diff.length > 50000; // ~12.5k chars (~3k tokens)
-		const isManyFiles = staged.files.length >= 5;
-		const hasLargeIndividualFile = diffSummary && diffSummary.fileStats.some(f => f.changes > 500);
-		const needsEnhancedAnalysis = isLargeDiff || isManyFiles || hasLargeIndividualFile;
-
-		if (needsEnhancedAnalysis && diffSummary) {
-			let reason = 'Large diff detected';
-			if (isManyFiles) reason = 'Many files detected';
-			else if (hasLargeIndividualFile) reason = 'Large file changes detected';
-			
-			detectingFiles.stop(
-				`${getDetectedMessage(staged.files)} (${diffSummary.totalChanges.toLocaleString()} changes):\n${staged.files
-					.map((file) => `     ${file}`)
-					.join('\n')}\n\n  ${reason} - using enhanced analysis for better commit message`
-			);
-		} else {
-			detectingFiles.stop(
-				`${getDetectedMessage(staged.files)}:\n${staged.files
-					.map((file) => `     ${file}`)
-					.join('\n')}`
-			);
-		}
-
-		const { env } = process;
+		validateGitArgs(options.gitArgs);
+		if ((options.dryRun || options.previewDiff) && options.all) throw new KnownError('Preview options cannot be combined with --all; stage changes first.');
+		const noChanges = 'No staged changes found. Stage your changes manually, or automatically stage all changes with the `--all` flag.';
+		if (!options.all && !await hasStagedChanges(options.exclude)) throw new KnownError(noChanges);
 		const config = await getConfig({
-			GROQ_API_KEY: env.GROQ_API_KEY,
-			proxy:
-				env.https_proxy || env.HTTPS_PROXY || env.http_proxy || env.HTTP_PROXY,
-			generate: generate?.toString(),
-			type: commitType?.toString(),
+			GROQ_API_KEY: options.previewDiff ? 'gsk_preview' : process.env.GROQ_API_KEY,
+			proxy: process.env.https_proxy || process.env.HTTPS_PROXY || process.env.http_proxy || process.env.HTTP_PROXY,
+			...options.config,
 		});
-
-		// Grouping flow disabled
-
-		// Single commit workflow - use compact summary approach
-		const s = spinner();
-		s.start('The AI is analyzing your changes');
-        let messages: string[];
-		try {
-			const compact = await buildCompactSummary(excludeFiles, 25);
-			if (compact) {
-				const enhanced = await buildSingleCommitPrompt(staged.files, compact, config['max-length']);
-				messages = await generateCommitMessageFromSummary(
-					config.GROQ_API_KEY,
-					config.model,
-					config.locale,
-					enhanced,
-					config.generate,
-					config['max-length'],
-					config.type,
-					config.timeout,
-					config.proxy
-				);
-			} else {
-				// Fallback to simple file list if summary fails
-				const fileList = staged.files.join(', ');
-				const fallbackPrompt = await buildSingleCommitPrompt(staged.files, `Files: ${fileList}`, config['max-length']);
-				const systemPrompt = generatePrompt(config.locale, config['max-length'], config.type);
-				messages = await generateCommitMessageFromSummary(
-					config.GROQ_API_KEY,
-					config.model,
-					config.locale,
-					fallbackPrompt,
-					config.generate,
-					config['max-length'],
-					config.type,
-					config.timeout,
-					config.proxy
-				);
+		if (options.all) await execa('git', ['add', '--update']);
+		const snapshot = await getStagedDiff(options.exclude, config['max-diff-chars'], options.includeGenerated, options.thorough);
+		if (!snapshot) throw new KnownError(noChanges);
+		if (options.previewDiff) {
+			console.log(options.thorough ? snapshot.chunks.join('\n\n--- Next analysis batch ---\n\n') : snapshot.diff);
+			return;
+		}
+		if (!options.dryRun && !options.yes && !process.stdin.isTTY) throw new KnownError('Interactive input is unavailable. Use --dry-run to preview or --yes to commit the first suggestion.');
+		if (!options.dryRun) intro(`lazycommit · ${getDetectedMessage(snapshot.files)}`);
+		let analysis = options.thorough ? undefined : snapshot.diff;
+		let message = '';
+		for (;;) {
+			const progress = options.dryRun || options.yes ? undefined : spinner();
+			progress?.start('Analyzing staged changes');
+			let messages: string[];
+			try {
+				analysis ??= await analyzeDiff(config, snapshot.chunks);
+				messages = await generateMessages(config, analysis);
 			}
-		} finally {
-			s.stop('Changes analyzed');
-		}
-
-		if (messages.length === 0) {
-			throw new KnownError('No commit messages were generated. Try again.');
-		}
-
-		let message: string;
-		let editedAlready = false;
-		let useAsIs = false;
-		if (messages.length === 1) {
+			finally { progress?.stop('Analysis finished'); }
+			if (options.dryRun) {
+				console.log(messages.join('\n'));
+				return;
+			}
 			[message] = messages;
-			const choice = await select({
-				message: `Review generated commit message:\n\n   ${message}\n`,
+			if (options.yes) break;
+			if (messages.length > 1) {
+				const selected = await select({ message: 'Choose a commit message', options: messages.map(value => ({ value, label: value })) });
+				if (isCancel(selected)) { outro('Commit cancelled'); return; }
+				message = selected;
+			}
+			const action = await select({
+				message: `Review commit message:\n\n${message}`,
 				options: [
-					{ label: 'Use as-is', value: 'use' },
-					{ label: 'Edit', value: 'edit' },
-					{ label: 'Cancel', value: 'cancel' },
+					{ value: 'use', label: 'Use as-is' }, { value: 'edit', label: 'Edit' },
+					{ value: 'regenerate', label: 'Regenerate' }, { value: 'cancel', label: 'Cancel' },
 				],
 			});
-
-			if (isCancel(choice) || choice === 'cancel') {
-				outro('Commit cancelled');
-				return;
-			}
-
-			if (choice === 'use') {
-				useAsIs = true;
-			} else if (choice === 'edit') {
+			if (isCancel(action) || action === 'cancel') { outro('Commit cancelled'); return; }
+			if (action === 'regenerate') continue;
+			if (action === 'edit') {
 				const edited = await text({
-					message: 'Edit commit message:',
-					initialValue: message,
-					validate: (value) => (value && value.trim().length > 0 ? undefined : 'Message cannot be empty'),
+					message: 'Edit commit message', initialValue: message,
+					validate: value => !value?.trim() ? 'Message cannot be empty' : /[\x00-\x1f\x7f]/.test(value) ? 'Use a single line without control characters' : undefined,
 				});
-				if (isCancel(edited)) {
-					outro('Commit cancelled');
-					return;
-				}
-				message = String(edited).trim();
-				editedAlready = true;
+				if (isCancel(edited)) { outro('Commit cancelled'); return; }
+				message = edited.trim();
+				const proceed = await confirm({ message: `Commit with this message?\n\n${message}` });
+				if (isCancel(proceed) || !proceed) { outro('Commit cancelled'); return; }
 			}
-		} else {
-			const selected = await select({
-				message: `Pick a commit message to use: ${dim('(Ctrl+c to exit)')}`,
-				options: messages.map((value) => ({ label: value, value })),
-			});
-
-			if (isCancel(selected)) {
-				outro('Commit cancelled');
-				return;
-			}
-
-			message = selected as string;
-			useAsIs = true;
+			break;
 		}
-
-		if (!useAsIs && !editedAlready) {
-			const wantsEdit = await confirm({ message: 'Edit the commit message before committing?' });
-			if (wantsEdit && !isCancel(wantsEdit)) {
-				const edited = await text({
-					message: 'Edit commit message:',
-					initialValue: message,
-					validate: (value) => (value && value.trim().length > 0 ? undefined : 'Message cannot be empty'),
-				});
-				if (isCancel(edited)) {
-					outro('Commit cancelled');
-					return;
-				}
-				message = String(edited).trim();
-				editedAlready = true;
-			}
+		const currentHead = await execa('git', ['rev-parse', '--verify', 'HEAD'], { reject: false });
+		if (await getIndexTree() !== snapshot.tree || (currentHead.failed ? '' : currentHead.stdout) !== snapshot.head) {
+			throw new KnownError('Staged changes or HEAD changed during review. Run lazycommit again to analyze the current changes.');
 		}
-
-		// Final proceed confirmation displaying the message (skip if user chose 'Use as-is')
-		if (!useAsIs) {
-			const proceed = await confirm({
-				message: `Proceed with this commit message?\n\n   ${message}\n`,
-			});
-			if (!proceed || isCancel(proceed)) {
-				outro('Commit cancelled');
-				return;
-			}
-		}
-
-		await execa('git', ['commit', '-m', message, ...rawArgv]);
-
-		outro(`${green('✔')} Successfully committed!`);
-	})().catch((error) => {
-		outro(`${red('✖')} ${error.message}`);
+		await execa('git', ['commit', '-m', message, ...options.gitArgs]);
+		outro('Successfully committed!');
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		if (options.dryRun || options.previewDiff) console.error(message);
+		else outro(message);
 		handleCliError(error);
-		process.exit(1);
-	});
+		process.exitCode = 1;
+	}
+};

@@ -1,199 +1,132 @@
+import { createInterface } from 'node:readline';
 import { execa } from 'execa';
 import { KnownError } from './error.js';
 
 export const assertGitRepo = async () => {
-	const { stdout, failed } = await execa(
-		'git',
-		['rev-parse', '--show-toplevel'],
-		{ reject: false }
-	);
-
-	if (failed) {
-		throw new KnownError('The current directory must be a Git repository!');
-	}
-
+	const { stdout, failed } = await execa('git', ['rev-parse', '--show-toplevel'], { reject: false });
+	if (failed) throw new KnownError('The current directory must be a Git repository!');
 	return stdout;
 };
 
-const excludeFromDiff = (path: string) => `:(exclude)${path}`;
+export const getIndexTree = async () => (await execa('git', ['write-tree'])).stdout;
 
-const filesToExclude = [
-	'package-lock.json',
-	'node_modules/**',
-	'dist/**',
-	'build/**',
-	'.next/**',
-	'coverage/**',
-	'.nyc_output/**',
-	'*.log',
-	'*.tmp',
-	'*.temp',
-	'*.cache',
-	'.DS_Store',
-	'Thumbs.db',
-	'*.min.js',
-	'*.min.css',
-	'*.bundle.js',
-	'*.bundle.css',
-	'*.lock',
-].map(excludeFromDiff);
+// Keep generated files in the summary, but spend the code-context budget on source.
+const generatedFiles = [
+	'package-lock.json', 'pnpm-lock.yaml', 'yarn.lock', 'bun.lock', 'bun.lockb',
+	'*.lock', '*.min.js', '*.min.css', '*.bundle.js', '*.bundle.css',
+	'node_modules/**', 'dist/**', 'build/**', '.next/**', 'coverage/**',
+];
+const excludePath = (file: string) => `:(top,exclude)${file}`;
 
-export const getStagedDiff = async (excludeFiles?: string[]) => {
-	const diffCached = ['diff', '--cached', '--diff-algorithm=minimal'];
-	const { stdout: files } = await execa('git', [
-		...diffCached,
-		'--name-only',
-		...filesToExclude,
-		...(excludeFiles ? excludeFiles.map(excludeFromDiff) : []),
-	]);
+export const hasStagedChanges = async (excludeFiles: string[] = []) => {
+	const result = await execa('git', ['diff', '--cached', '--quiet', '--no-ext-diff', '--', ':(top)**', ...excludeFiles.map(excludePath)], { reject: false });
+	if (result.exitCode !== 0 && result.exitCode !== 1) throw new KnownError('Unable to inspect staged changes. Resolve index conflicts and retry.');
+	return result.exitCode === 1;
+};
 
-	if (!files) {
-		return;
+export const getStagedDiff = async (
+	excludeFiles: string[] = [],
+	maxDiffChars = 16000,
+	includeGenerated = false,
+	thorough = false,
+) => {
+	const tree = await getIndexTree();
+	const head = await execa('git', ['rev-parse', '--verify', 'HEAD'], { reject: false });
+	const base = head.failed
+		? (await execa('git', ['hash-object', '-t', 'tree', '--stdin'], { input: '' })).stdout
+		: head.stdout;
+	const args = ['diff', '--no-ext-diff', '--no-textconv', '--no-color', '--no-relative', '--find-renames', base, tree];
+	const paths = ['--', ':(top)**', ...excludeFiles.map(excludePath)];
+	const { stdout } = await execa('git', [...args, '--numstat', '-z', ...paths], { stripFinalNewline: false });
+	if (!stdout) return;
+
+	const records = stdout.split('\0');
+	const files: string[] = [];
+	const stats: string[] = [];
+	for (let i = 0; i < records.length && records[i]; i++) {
+		const match = records[i].match(/^(\d+|-)\t(\d+|-)\t([\s\S]*)$/);
+		if (!match) throw new KnownError('Unable to read staged file statistics.');
+		const [, added, deleted, name] = match;
+		const oldName = name ? undefined : records[++i];
+		const file = name || records[++i];
+		files.push(file);
+		stats.push(`${JSON.stringify(file)}${oldName ? ` (renamed from ${JSON.stringify(oldName)})` : ''}: ${added === '-' ? 'binary change' : `+${added} -${deleted}`}`);
 	}
 
-	const { stdout: diff } = await execa('git', [
-		...diffCached,
-		...filesToExclude,
-		...(excludeFiles ? excludeFiles.map(excludeFromDiff) : []),
-	]);
-
+	const summaryLimit = Math.floor(maxDiffChars / 3);
+	let summary = `Staged files: ${files.length}\n`;
+	let shown = 0;
+	for (const stat of stats) {
+		if (summary.length + stat.length + 80 > summaryLimit) break;
+		summary += `${stat}\n`;
+		shown++;
+	}
+	if (shown < files.length) summary += `[${files.length - shown} more files omitted from summary]\n`;
+	const budget = maxDiffChars - summary.length - 160;
+	const perFile = Math.max(120, Math.min(3000, Math.floor(budget / Math.min(files.length, 30))));
+	const chunks: string[] = [];
+	let chunk = '';
+	let contextSize = 0;
+	let chunkLabel = 'File statistics';
+	const addContext = (text: string) => {
+		if (!thorough) return;
+		contextSize += text.length;
+		if (contextSize > 1_600_000) throw new KnownError('Thorough analysis exceeds 1.6 million characters. Exclude generated files or split the commit.');
+		chunk += text;
+		while (chunk.length >= 16000) {
+			const newline = chunk.lastIndexOf('\n', 15999);
+			const end = newline >= 8000 ? newline + 1 : 16000;
+			chunks.push(chunk.slice(0, end));
+			chunk = `Continuation: ${chunkLabel.slice(0, 500)}\n${chunk.slice(end)}`;
+		}
+	};
+	addContext(`File statistics:\n${stats.join('\n')}\n`);
+	const snippets: string[] = [];
+	let patch = '';
+	let patchFits = true;
+	let snippet = '';
+	let omitted = false;
+	let used = 0;
+	let omittedFiles = 0;
+	const flush = () => {
+		if (!snippet) return;
+		const block = snippet + (omitted ? '\n[remaining file diff omitted]' : '');
+		if (used + block.length + 1 <= budget) {
+			snippets.push(block);
+			used += block.length + 1;
+		} else omittedFiles++;
+		snippet = '';
+		omitted = false;
+	};
+	const diff = execa('git', [
+		...args, '--unified=3', ...paths,
+		...(includeGenerated ? [] : generatedFiles.map(excludePath)),
+	], { buffer: false });
+	const lines = createInterface({ input: diff.stdout! });
+	// ponytail: bounded leading hunks per file; semantic hunk ranking can follow if needed.
+	try {
+		for await (const line of lines) {
+			if (line.startsWith('diff --git ')) chunkLabel = line;
+			addContext(`${line}\n`);
+			if (patchFits && patch.length + line.length + 1 <= budget) patch += `${line}\n`;
+			else { patchFits = false; patch = ''; }
+			if (line.startsWith('diff --git ')) flush();
+			if (snippet.length + line.length + 1 <= perFile) snippet += `${line}\n`;
+			else omitted = true;
+		}
+	} catch (error) {
+		diff.kill();
+		await diff.catch(() => {});
+		throw error;
+	}
+	flush();
+	await diff;
+	if (chunk) chunks.push(chunk);
 	return {
-		files: files.split('\n'),
-		diff,
+		files, tree, chunks, head: head.failed ? '' : head.stdout,
+		diff: `${summary}\n${patchFits ? 'Diff' : 'Sampled diff (omissions marked)'}:\n${patchFits ? patch : snippets.join('\n')}${!patchFits && omittedFiles ? `\n[${omittedFiles} file patches omitted]` : ''}\n${includeGenerated ? '' : '[Generated-file patches omitted; statistics retained]'}`,
 	};
 };
 
 export const getDetectedMessage = (files: string[]) =>
-	`Detected ${files.length.toLocaleString()} staged file${
-		files.length > 1 ? 's' : ''
-	}`;
-
-// Rough estimation: 1 token ≈ 4 characters for English text
-export const estimateTokenCount = (text: string): number => {
-	return Math.ceil(text.length / 4);
-};
-
-// Split diff into chunks that fit within token limits
-export const chunkDiff = (diff: string, maxTokens: number = 4000): string[] => {
-	const estimatedTokens = estimateTokenCount(diff);
-	
-	if (estimatedTokens <= maxTokens) {
-		return [diff];
-	}
-
-	const chunks: string[] = [];
-	const lines = diff.split('\n');
-	let currentChunk = '';
-	let currentTokens = 0;
-
-	for (const line of lines) {
-		const lineTokens = estimateTokenCount(line);
-		
-		// If adding this line would exceed the limit, start a new chunk
-		if (currentTokens + lineTokens > maxTokens && currentChunk.length > 0) {
-			chunks.push(currentChunk.trim());
-			currentChunk = line + '\n';
-			currentTokens = lineTokens;
-		} else {
-			currentChunk += line + '\n';
-			currentTokens += lineTokens;
-		}
-	}
-
-	// Add the last chunk if it has content
-	if (currentChunk.trim().length > 0) {
-		chunks.push(currentChunk.trim());
-	}
-
-	return chunks;
-};
-
-// Get a summary of changes for very large diffs
-export const getDiffSummary = async (excludeFiles?: string[]) => {
-	const diffCached = ['diff', '--cached', '--diff-algorithm=minimal'];
-	const { stdout: files } = await execa('git', [
-		...diffCached,
-		'--name-only',
-		...filesToExclude,
-		...(excludeFiles ? excludeFiles.map(excludeFromDiff) : []),
-	]);
-
-	if (!files) {
-		return null;
-	}
-
-	const fileList = files.split('\n').filter(Boolean);
-	
-	// Get stats for each file
-	const fileStats = await Promise.all(
-		fileList.map(async (file) => {
-			try {
-				const { stdout: stat } = await execa('git', [
-					...diffCached,
-					'--numstat',
-					'--',
-					file
-				]);
-				const [additions, deletions] = stat.split('\t').slice(0, 2).map(Number);
-				return {
-					file,
-					additions: additions || 0,
-					deletions: deletions || 0,
-					changes: (additions || 0) + (deletions || 0)
-				};
-			} catch {
-				return { file, additions: 0, deletions: 0, changes: 0 };
-			}
-		})
-	);
-
-	return {
-		files: fileList,
-		fileStats,
-		totalChanges: fileStats.reduce((sum, stat) => sum + stat.changes, 0)
-	};
-};
-
-export const splitDiffByFile = (diff: string): string[] => {
-	const parts: string[] = [];
-	let current = '';
-	const lines = diff.split('\n');
-	for (const line of lines) {
-		if (line.startsWith('diff --git ')) {
-			if (current.trim().length > 0) parts.push(current.trim());
-			current = line + '\n';
-		} else {
-			current += line + '\n';
-		}
-	}
-	if (current.trim().length > 0) parts.push(current.trim());
-	return parts;
-};
-
-export const buildCompactSummary = async (
-	excludeFiles?: string[],
-	maxFiles: number = 20
-) => {
-	const summary = await getDiffSummary(excludeFiles);
-	if (!summary) return null;
-	const { fileStats } = summary;
-	const sorted = [...fileStats].sort((a, b) => b.changes - a.changes);
-	const top = sorted.slice(0, Math.max(1, maxFiles));
-	const totalFiles = summary.files.length;
-	const totalChanges = summary.totalChanges;
-	const totalAdditions = fileStats.reduce((s, f) => s + (f.additions || 0), 0);
-	const totalDeletions = fileStats.reduce((s, f) => s + (f.deletions || 0), 0);
-
-	const lines: string[] = [];
-	lines.push(`Files changed: ${totalFiles}`);
-	lines.push(`Additions: ${totalAdditions}, Deletions: ${totalDeletions}, Total changes: ${totalChanges}`);
-	lines.push('Top files by changes:');
-	for (const f of top) {
-		lines.push(`- ${f.file} (+${f.additions} / -${f.deletions}, ${f.changes} changes)`);
-	}
-	if (sorted.length > top.length) {
-		lines.push(`…and ${sorted.length - top.length} more files`);
-	}
-
-	return lines.join('\n');
-};
+	`Detected ${files.length.toLocaleString()} staged file${files.length === 1 ? '' : 's'}`;
