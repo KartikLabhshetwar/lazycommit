@@ -49,7 +49,7 @@ cli(
 				description: 'Type of commit message to generate',
 				alias: 't',
 			},
-			model: { type: String, description: 'Groq model to use' },
+			model: { type: String, description: 'AI model as provider/model, for example groq/openai/gpt-oss-20b' },
 			locale: { type: String, description: 'Language of the generated subject' },
 			maxLength: { type: Number, description: 'Maximum subject length (20–200)' },
 			maxDiffChars: { type: Number, description: 'Diff context budget (1000–100000 characters)' },

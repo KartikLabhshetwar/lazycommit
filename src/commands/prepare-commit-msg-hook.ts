@@ -3,7 +3,7 @@ import { intro, outro, spinner } from '@clack/prompts';
 import { black, green, red, bgCyan } from 'kolorist';
 import { getStagedDiff, getIndexTree, hasStagedChanges } from '../utils/git.js';
 import { getConfig } from '../utils/config.js';
-import { generateMessages } from '../utils/groq.js';
+import { generateMessages } from '../utils/ai.js';
 import { KnownError, handleCliError } from '../utils/error.js';
 
 const [messageFilePath, commitSource] = process.argv.slice(2);
@@ -25,7 +25,6 @@ export default () =>
 
 		const { env } = process;
 		const config = await getConfig({
-			GROQ_API_KEY: env.GROQ_API_KEY,
 			proxy:
 				env.https_proxy || env.HTTPS_PROXY || env.http_proxy || env.HTTP_PROXY,
 		});
@@ -36,7 +35,7 @@ export default () =>
 		const s = spinner();
 		s.start('The AI is analyzing your changes');
 		let messages: string[];
-		try { messages = await generateMessages(config, staged.diff); }
+		try { messages = await generateMessages(config, staged.diff, staged.overview); }
 		finally { s.stop('Changes analyzed'); }
 		if (await getIndexTree() !== staged.tree) throw new KnownError('Staged changes changed during generation. Please retry the commit.');
 

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { getStagedDiff } from '../src/utils/git.js';
-import { normalizeMessage } from '../src/utils/groq.js';
+import { normalizeMessage } from '../src/utils/ai.js';
 import { generatePrompt } from '../src/utils/prompt.js';
 import { createFixture, createGit } from './utils.js';
 
@@ -29,7 +29,7 @@ const { fixture, lazycommit } = await createFixture({
 const git = await createGit(fixture.path);
 const originalCwd = process.cwd();
 let requests: Array<{ model: string; messages: Array<{ content: string }> }> = [];
-let responses: Array<{ content?: string | null; reasoning?: string; finish?: string; status?: number }> = [];
+let responses: Array<{ content?: string | null; reasoning?: string; finish?: string; status?: number; retryAfter?: string }> = [];
 let mutateIndex = false;
 const server = createServer(async (req, res) => {
 	let body = '';
@@ -43,6 +43,7 @@ const server = createServer(async (req, res) => {
 	}
 	const answer = responses.shift() ?? { content: request.messages[0].content.startsWith('Summarize') ? 'Add the enabled flag and related files.' : 'Add enabled flag' };
 	res.setHeader('Content-Type', 'application/json');
+	if (answer.retryAfter) res.setHeader('retry-after', answer.retryAfter);
 	res.statusCode = answer.status ?? 200;
 	res.end(JSON.stringify(answer.status ? { error: { message: 'Mock API failure' } } : {
 		choices: [{ message: { content: answer.content, reasoning: answer.reasoning }, finish_reason: answer.finish ?? 'stop' }],
@@ -52,7 +53,7 @@ server.listen(0, '127.0.0.1');
 await once(server, 'listening');
 const address = server.address();
 assert(address && typeof address === 'object');
-const options = { env: { GROQ_BASE_URL: `http://127.0.0.1:${address.port}` } };
+const options = { env: { LAZYCOMMIT_BASE_URL: `http://127.0.0.1:${address.port}` } };
 try {
 	await git('add', ['src', 'odd\tname\n.txt', 'image.bin', 'pnpm-lock.yaml']);
 	process.chdir(fixture.path);
@@ -79,7 +80,7 @@ try {
 	assert.equal((await git('status', ['--porcelain'])).stdout, status);
 
 	responses = [{ content: 'fix(api): handle empty input' }];
-	assert.equal((await lazycommit(['--dry-run', '-t', 'conventional', '--scope=api', '--model=test-model', '--locale=ja', '--context', 'Handle x=y', '--max-length=40', '--max-diff-chars=1000'], options)).stdout, 'fix(api): handle empty input');
+	assert.equal((await lazycommit(['--dry-run', '-t', 'conventional', '--scope=api', '--model=groq/test-model', '--locale=ja', '--context', 'Handle x=y', '--max-length=40', '--max-diff-chars=1000'], options)).stdout, 'fix(api): handle empty input');
 	assert.equal(requests[requests.length - 1].model, 'test-model');
 	assert.match(requests[requests.length - 1].messages[0].content, /Handle x=y/);
 	assert(requests[requests.length - 1].messages[1].content.length <= 1000);
@@ -88,8 +89,29 @@ try {
 	responses = [{ content: 'x'.repeat(101) }, { content: 'Add enabled flag' }];
 	assert.equal((await lazycommit(['--dry-run'], options)).stdout, 'Add enabled flag');
 	assert.equal(requests.length, 2);
-	assert.equal(requests[1].messages[2].content, 'x'.repeat(101));
-	assert.match(requests[1].messages[3].content, /101 characters/);
+	assert.equal(requests[0].model, 'openai/gpt-oss-20b');
+	assert.equal(requests[1].messages.length, 2);
+	assert.match(requests[1].messages[1].content, /101 characters/);
+	assert(requests[1].messages[1].content.includes('x'.repeat(101)));
+	assert.match(requests[1].messages[1].content, /src\/a\.ts/);
+	assert(!requests[1].messages[1].content.includes('export const enabled'));
+	requests = [];
+	responses = [{ content: 'Add\nflag' }, { content: 'Add enabled flag' }];
+	assert.equal((await lazycommit(['--dry-run', '--model=llama-3.3-70b-versatile'], options)).stdout, 'Add enabled flag');
+	assert.equal(requests[0].model, 'llama-3.3-70b-versatile');
+	assert.match(requests[1].messages[1].content, /export const enabled/);
+	assert.match(requests[1].messages[3].content, /previous response was invalid/);
+	requests = [];
+	responses = [{ status: 429, retryAfter: '0' }, { content: 'Add enabled flag' }];
+	assert.equal((await lazycommit(['--dry-run'], options)).stdout, 'Add enabled flag');
+	assert.equal(requests.length, 2);
+	requests = [];
+	responses = [{ status: 429, retryAfter: '30' }];
+	const limited = await lazycommit(['--dry-run'], { ...options, reject: false });
+	assert.match(String(limited.stderr), /rate limit reached \(429\)\. Try again in 30 seconds/);
+	assert.equal(requests.length, 1);
+	const noKey = await lazycommit(['--dry-run', '--model=openai/gpt-5.4-mini'], { ...options, reject: false });
+	assert.match(String(noKey.stderr), /OPENAI_API_KEY/);
 	responses = [{ content: null, reasoning: 'feat: guessed message' }, { content: null, reasoning: 'feat: guessed message' }];
 	const invalid = await lazycommit(['--dry-run'], { ...options, reject: false });
 	assert.equal(invalid.exitCode, 1);
@@ -113,7 +135,7 @@ try {
 	const stale = await lazycommit(['--yes'], { ...options, reject: false });
 	assert.equal(stale.exitCode, 1);
 	assert.match(String(stale.stdout), /changed during review/);
-	await lazycommit(['--yes', '-g', '1', '--model=test-model', '--no-verify', '-s'], options);
+	await lazycommit(['--yes', '-g', '1', '--model=groq/test-model', '--no-verify', '-s'], options);
 	assert.equal((await git('log', ['-1', '--format=%s'])).stdout, 'Add enabled flag');
 	assert.match(String((await git('log', ['-1', '--format=%B'])).stdout), /Signed-off-by:/);
 
@@ -150,6 +172,25 @@ try {
 	assert.deepEqual(lockOnly!.files, ['pnpm-lock.yaml']);
 	assert(!lockOnly!.diff.includes('lockfileVersion'));
 	process.chdir(originalCwd);
+
+	const many = await createFixture(Object.fromEntries([
+		...Array.from({ length: 1000 }, (_, i) => [`pkg-${String(i % 20).padStart(2, '0')}/src/file${i}.ts`, `export const value${i} = ${i};\n`]),
+		['zz-core/engine.ts', Array.from({ length: 400 }, (_, i) => `export const step${i} = ${i};`).join('\n')],
+	]));
+	const manyGit = await createGit(many.fixture.path);
+	await manyGit('add', ['.']);
+	process.chdir(many.fixture.path);
+	const wide = await getStagedDiff();
+	process.chdir(originalCwd);
+	await many.fixture.rm();
+	assert(wide && wide.diff.length <= 16000);
+	assert.match(wide.diff, /Change areas:\n"zz-core\/engine\.ts": \+400 -0\n/);
+	assert.match(wide.diff, /"pkg-00\/src\/": 50 files, \+50 -0/);
+	assert.match(wide.diff, /diff --git a\/zz-core\/engine\.ts/);
+	assert(new Set(wide.diff.match(/diff --git a\/pkg-\d+/g)).size >= 19);
+	assert.equal(wide.overview.split('\n').length, 13);
+	assert.match(wide.overview, /\nOther paths: 500 files, \+500 -0$/);
+	assert.match(wide.overview, /^Staged files: 1001\n"zz-core\/engine\.ts"/);
 	console.log('Offline regression checks passed (diffs, options, API validation, commits, hooks, thorough analysis).');
 } finally {
 	process.chdir(originalCwd);

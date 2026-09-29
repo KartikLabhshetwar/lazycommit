@@ -19,15 +19,23 @@ const parseAssert = (name: string, condition: any, message: string) => {
 	}
 };
 
-const configParsers = {
-	GROQ_API_KEY(key?: string) {
-		if (!key) {
-			throw new KnownError(
-				'Please set your Groq API key via `lazycommit config set GROQ_API_KEY=<your token>`'
-			);
-		}
-		parseAssert('GROQ_API_KEY', key.startsWith('gsk_'), 'Must start with "gsk_"');
+const apiKey = (name: string) => (key?: string) => {
+	if (!key) return undefined;
+	parseAssert(name, /^\S+$/.test(key), 'Cannot contain whitespace');
+	return key;
+};
 
+const configParsers = {
+	OPENAI_API_KEY: apiKey('OPENAI_API_KEY'),
+	GOOGLE_API_KEY: apiKey('GOOGLE_API_KEY'),
+	ANTHROPIC_API_KEY: apiKey('ANTHROPIC_API_KEY'),
+	MOONSHOT_API_KEY: apiKey('MOONSHOT_API_KEY'),
+	DEEPSEEK_API_KEY: apiKey('DEEPSEEK_API_KEY'),
+	ZHIPU_API_KEY: apiKey('ZHIPU_API_KEY'),
+	MINIMAX_API_KEY: apiKey('MINIMAX_API_KEY'),
+	GROQ_API_KEY(key?: string) {
+		if (!key) return undefined;
+		parseAssert('GROQ_API_KEY', key.startsWith('gsk_'), 'Must start with "gsk_"');
 		return key;
 	},
 	locale(locale?: string) {
@@ -94,8 +102,8 @@ const configParsers = {
 		return parsed;
 	},
 	model(model?: string) {
-		if (!model || model.length === 0) {
-			return 'openai/gpt-oss-20b';
+		if (!model) {
+			return '';
 		}
 
 		parseAssert('model', /^\S+$/.test(model), 'Cannot contain whitespace');

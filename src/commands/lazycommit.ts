@@ -2,7 +2,7 @@ import { execa } from 'execa';
 import { intro, outro, spinner, select, confirm, isCancel, text } from '@clack/prompts';
 import { assertGitRepo, getStagedDiff, getDetectedMessage, getIndexTree, hasStagedChanges } from '../utils/git.js';
 import { getConfig, type RawConfig } from '../utils/config.js';
-import { generateMessages, analyzeDiff, conventionalPattern } from '../utils/groq.js';
+import { generateMessages, analyzeDiff, conventionalPattern, resolveModel } from '../utils/ai.js';
 import { KnownError, handleCliError } from '../utils/error.js';
 
 type Options = {
@@ -39,10 +39,10 @@ export default async (options: Options) => {
 		const noChanges = 'No staged changes found. Stage your changes manually, or automatically stage all changes with the `--all` flag.';
 		if (!options.all && !await hasStagedChanges(options.exclude)) throw new KnownError(noChanges);
 		const config = await getConfig({
-			GROQ_API_KEY: options.previewDiff ? 'gsk_preview' : process.env.GROQ_API_KEY,
 			proxy: process.env.https_proxy || process.env.HTTPS_PROXY || process.env.http_proxy || process.env.HTTP_PROXY,
 			...options.config,
 		});
+		if (!options.previewDiff) resolveModel(config);
 		if (options.all) await execa('git', ['add', '--update']);
 		const snapshot = await getStagedDiff(options.exclude, config['max-diff-chars'], options.includeGenerated, options.thorough);
 		if (!snapshot) throw new KnownError(noChanges);
@@ -60,7 +60,7 @@ export default async (options: Options) => {
 			let messages: string[];
 			try {
 				analysis ??= await analyzeDiff(config, snapshot.chunks);
-				messages = await generateMessages(config, analysis);
+				messages = await generateMessages(config, analysis, snapshot.overview);
 			}
 			finally { progress?.stop('Analysis finished'); }
 			if (options.dryRun) {
