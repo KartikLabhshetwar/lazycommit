@@ -30,7 +30,7 @@ export default function Page() {
               variants={variants}
               transition={{ duration: 0.6, delay: 2.5 }}
             >
-              v1.0.19 is out!
+              v2.0.1 is out!
             </motion.p>
             <motion.div
               className="flex items-center gap-4"
