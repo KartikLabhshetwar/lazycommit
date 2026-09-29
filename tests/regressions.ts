@@ -13,6 +13,9 @@ assert.equal(normalizeMessage('<think>notes</think>', 100, ''), undefined);
 assert.equal(normalizeMessage('fix: change behavior', 100, ''), undefined);
 assert.equal(normalizeMessage('更新設定', 20, ''), '更新設定');
 assert.equal(normalizeMessage('feat: add widget', 100, 'conventional', 'api'), undefined);
+assert.equal(normalizeMessage('feat(cli, commands): add flags', 100, 'conventional'), undefined);
+assert.equal(normalizeMessage('Fix(parser): handle empty input', 100, 'conventional'), 'Fix(parser): handle empty input');
+assert.match(generatePrompt('en', 72, 'conventional'), /Conventional Commits 1\.0\.0/);
 assert.match(generatePrompt('ja', 50, ''), /plain subject/);
 assert.match(generatePrompt('ja', 50, 'conventional', 'api'), /exactly the scope "api"/);
 

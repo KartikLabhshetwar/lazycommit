@@ -5,13 +5,15 @@ import { KnownError } from './error.js';
 import type { CommitType, ValidConfig } from './config.js';
 import { generatePrompt } from './prompt.js';
 
+export const conventionalPattern = /^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(?:\(([a-z0-9][a-z0-9._/-]*)\))?!?: (\S.*)$/i;
+
 export const normalizeMessage = (content: string, maxLength: number, type: CommitType, scope = '') => {
 	let message = content.trim().replace(/^```[^\n]*\n([\s\S]*?)\n```$/, '$1').trim();
 	if ((message.startsWith('"') && message.endsWith('"')) || (message.startsWith("'") && message.endsWith("'"))) message = message.slice(1, -1);
 	message = message.trim();
 	if (!message || /[\r\n\x00-\x1f\x7f]/.test(message) || /<\/?think\b/i.test(message)) return;
 	if ([...message].length > maxLength) return;
-	const conventional = message.match(/^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(?:\(([^()\r\n]+)\))?!?: (\S.*)$/);
+	const conventional = message.match(conventionalPattern);
 	if (type === 'conventional' && (!conventional || (scope && conventional[2] !== scope))) return;
 	if (type === '' && conventional) return;
 	return message;

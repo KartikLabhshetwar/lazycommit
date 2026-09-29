@@ -2,7 +2,7 @@ import { execa } from 'execa';
 import { intro, outro, spinner, select, confirm, isCancel, text } from '@clack/prompts';
 import { assertGitRepo, getStagedDiff, getDetectedMessage, getIndexTree, hasStagedChanges } from '../utils/git.js';
 import { getConfig, type RawConfig } from '../utils/config.js';
-import { generateMessages, analyzeDiff } from '../utils/groq.js';
+import { generateMessages, analyzeDiff, conventionalPattern } from '../utils/groq.js';
 import { KnownError, handleCliError } from '../utils/error.js';
 
 type Options = {
@@ -86,7 +86,8 @@ export default async (options: Options) => {
 			if (action === 'edit') {
 				const edited = await text({
 					message: 'Edit commit message', initialValue: message,
-					validate: value => !value?.trim() ? 'Message cannot be empty' : /[\x00-\x1f\x7f]/.test(value) ? 'Use a single line without control characters' : undefined,
+					validate: value => !value?.trim() ? 'Message cannot be empty' : /[\x00-\x1f\x7f]/.test(value) ? 'Use a single line without control characters'
+						: config.type === 'conventional' && !conventionalPattern.test(value.trim()) ? 'Use Conventional Commits format: type(scope): description' : undefined,
 				});
 				if (isCancel(edited)) { outro('Commit cancelled'); return; }
 				message = edited.trim();
