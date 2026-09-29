@@ -17,7 +17,7 @@ Thank you for your interest in contributing to lazycommit! This guide will help 
 
 Before you begin, ensure you have the following installed:
 
-- **Node.js**: Version 20 (as specified in `.nvmrc`)
+- **Node.js**: Version 22.13 or newer (`.nvmrc` pins 22)
 - **pnpm**: Version 10.15.0 (as specified in `package.json`)
 - **nvm**: For managing Node.js versions
 - **Git**: For version control
@@ -96,7 +96,7 @@ node ./dist/cli.mjs
 
 ### Running tests
 
-The default test command runs deterministic regression checks against a local mock API. To also run live Groq integration tests, pass `GROQ_API_KEY`:
+The default test command runs deterministic regression checks against a local mock API, with no provider key needed. To also run the live integration tests, which use Groq, pass `GROQ_API_KEY`:
 
 ```sh
 GROQ_API_KEY=<your GROQ key> pnpm test
@@ -117,7 +117,7 @@ The project uses [manten](https://github.com/privatenumber/manten) for testing. 
 
 - `tests/regressions.ts` - Offline diff, generation, CLI, and hook regression checks
 - `tests/specs/cli/` - CLI command tests
-- `tests/specs/groq/` - Groq API integration tests
+- `tests/specs/groq/` - Live API integration tests (Groq)
 - `tests/specs/config.ts` - Configuration tests
 - `tests/specs/git-hook.ts` - Git hook tests
 - `tests/fixtures/` - Test fixtures and sample diffs
@@ -163,7 +163,7 @@ src/
     ├── error.ts             # Error handling
     ├── fs.ts                # File system utilities
     ├── git.ts               # Git operations
-    ├── groq.ts              # Groq API integration
+    ├── ai.ts                # AI provider integration (Mastra)
     └── prompt.ts            # User prompts
 ```
 
@@ -251,7 +251,7 @@ pnpm dlx 'KartikLabhshetwar/lazycommit#npm/develop'
 
 - `src/cli.ts` - Main CLI entry point using cleye
 - `src/commands/lazycommit.ts` - Commit review, preview, regeneration, and safe commit flow
-- `src/utils/groq.ts` - Groq API integration with retry/fallback mechanisms
+- `src/utils/ai.ts` - Provider selection, generation, validation, retries, and API errors via Mastra
 - `src/utils/config.ts` - Configuration management
 - `src/utils/git.ts` - Git operations and file analysis utilities
 - `package.json` - Project configuration and dependencies
@@ -261,7 +261,7 @@ pnpm dlx 'KartikLabhshetwar/lazycommit#npm/develop'
 
 - **@clack/prompts** - Interactive CLI prompts
 - **cleye** - CLI framework
-- **groq-sdk** - Groq API client
+- **@mastra/core** - Multi-provider model router (OpenAI, Gemini, Anthropic, Kimi, DeepSeek, GLM, MiniMax, Groq)
 - **execa** - Process execution
 - **pkgroll** - TypeScript bundler
 - **manten** - Testing framework

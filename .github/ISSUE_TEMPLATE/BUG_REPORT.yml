@@ -19,7 +19,7 @@ body:
           Example:
           - I ran: lazycommit --type conventional
           - Expected: A conventional commit message to be generated
-          - Actual: Got an error "Groq API Error: 400"
+          - Actual: Got an error "OpenAI API error (400)"
         -->
     validations:
       required: true
@@ -42,7 +42,7 @@ body:
       description: |
         Please provide step-by-step instructions to reproduce the bug.
       placeholder: |
-        1. Set up Groq API key: `lazycommit config set GROQ_API_KEY=your_key`
+        1. Set up an API key: `lazycommit config set OPENAI_API_KEY=your_key`
         2. Stage some files: `git add .`
         3. Run: `lazycommit --type conventional`
         4. See error...
@@ -64,7 +64,7 @@ body:
           CPU: arm64
           Shell: zsh
         Binaries:
-          Node: 20.0.0
+          Node: 22.13.0
           npm: 10.0.0
         npmPackages:
           lazycommit: 1.0.0
@@ -73,11 +73,12 @@ body:
       required: true
   - type: textarea
     attributes:
-      label: Groq API Configuration
+      label: Provider and model configuration
       description: |
-        Please share your Groq API configuration (remove sensitive data):
+        Please share your provider and model configuration (remove API keys):
       placeholder: |
-        Model: openai/gpt-oss-20b
+        Provider: OpenAI
+        Model: openai/gpt-5.4-mini
         Type: conventional
         Max length: 50
         Locale: en
@@ -90,8 +91,7 @@ body:
         If there are any error messages, please paste them here.
       placeholder: |
         ```
-        Groq API Error: 400 - Error
-        400 {"error":{"message":"Invalid model","type":"invalid_request_error"}}
+        OpenAI API error (404). Check that the model openai/gpt-5.4-mini exists.
         ```
       render: shell
     validations:

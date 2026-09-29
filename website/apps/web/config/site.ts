@@ -1,9 +1,9 @@
 export const siteConfig = {
   title: "lazycommit",
-  description: "A CLI that writes your git commit messages for you with AI using Groq. Never write a commit message again.",
+  description: "A CLI that writes your git commit messages for you with AI. Never write a commit message again.",
   creator: "@KartikLabhshetwar",
   url: "https://lazycommit.vercel.app",
-  keywords: ["commit", "message", "generator", "cli", "tool", "ai", "groq", "git"],
+  keywords: ["commit", "message", "generator", "cli", "tool", "ai", "llm", "openai", "gemini", "anthropic", "groq", "git"],
   authors: [
     {
       name: "Kartik Labhshetwar",

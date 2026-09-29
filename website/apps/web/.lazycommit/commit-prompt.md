@@ -28,7 +28,7 @@ Use scopes in parentheses to indicate the area affected. Common scopes:
 
 - `cli` - CLI command changes
 - `config` - Configuration management
-- `groq` - Groq API integration
+- `ai` - AI provider integration
 - `git` - Git operations and utilities
 - `hook` - Git hook functionality
 - `web` or `website` - Website/documentation site changes
@@ -44,12 +44,12 @@ Start with an action verb (add, fix, update, improve, refactor). Be specific abo
 ## Examples
 
 - feat(cli): add `--exclude` flag for file exclusion
-- fix(groq): handle API timeout errors gracefully
+- fix(ai): handle API timeout errors gracefully
 - refactor(git): improve large diff detection logic
 - docs(web): update installation instructions
 - fix(config): validate API key format
 - feat(hook): add prepare-commit-msg hook support
 - chore: update dependencies
 - test: add unit tests for message generation
-- perf(groq): optimize prompt token usage
+- perf(ai): optimize prompt token usage
 - docs: update README with new features

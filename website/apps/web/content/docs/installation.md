@@ -1,13 +1,13 @@
 ---
 title: Installation
-description: Install lazycommit, set your Groq API key, and verify the setup.
+description: Install lazycommit, set an AI provider API key, and verify the setup.
 ---
 
 ## Requirements
 
 - Git
-- Node.js 20.5 or newer
-- A [Groq API key](https://console.groq.com/keys) for message generation
+- Node.js 22.13 or newer
+- An API key for one [supported provider](/docs/configuration#providers)
 
 The npm package is named `lazycommitt` (double t). The commands are `lazycommit` and `lzc`.
 
@@ -32,9 +32,9 @@ brew install lazycommit
 lazycommit config set GROQ_API_KEY="gsk_your_key_here"
 ```
 
-The key must start with `gsk_`. It is saved in `~/.lazycommit`, and lazycommit requests owner-only file permissions for that file.
+Use the key for your provider instead, for example `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`. See [Providers](/docs/configuration#providers) for the full list. Groq keys must start with `gsk_`. Keys are saved in `~/.lazycommit`, and lazycommit requests owner-only file permissions for that file.
 
-You can also set `GROQ_API_KEY` in your environment. It overrides the saved key.
+You can also set the key in your environment. It overrides the saved key.
 
 ```bash
 export GROQ_API_KEY="gsk_your_key_here"

@@ -1,7 +1,24 @@
 ---
 title: Configuration
-description: Saved settings, limits, environment variables, proxy, and precedence.
+description: Providers, saved settings, limits, environment variables, proxy, and precedence.
 ---
+
+## Providers
+
+| Provider | Key | Default model |
+| --- | --- | --- |
+| OpenAI | `OPENAI_API_KEY` | `openai/gpt-5.4-mini` |
+| Google Gemini | `GOOGLE_API_KEY` | `google/gemini-3.5-flash-lite` |
+| Anthropic | `ANTHROPIC_API_KEY` | `anthropic/claude-haiku-4-5` |
+| Kimi (Moonshot AI) | `MOONSHOT_API_KEY` | `moonshotai/kimi-k2.6` |
+| DeepSeek | `DEEPSEEK_API_KEY` | `deepseek/deepseek-flash` |
+| GLM (Z.AI) | `ZHIPU_API_KEY` | `zai/glm-5.3-flash` |
+| MiniMax | `MINIMAX_API_KEY` | `minimax/MiniMax-M3` |
+| Groq | `GROQ_API_KEY` | `groq/openai/gpt-oss-20b` |
+
+Without a `model` setting, lazycommit uses the first provider in this table that has a key, checking the environment first and then `~/.lazycommit`.
+
+Models are routed through [Mastra](https://mastra.ai/models), so other Mastra providers also work. Set their key as an environment variable, for example `OPENROUTER_API_KEY`, and pass the model as `provider/model`.
 
 ## Config file
 
@@ -42,8 +59,8 @@ lazycommit config set type= scope=
 
 | Key | Default | Limits |
 | --- | --- | --- |
-| `GROQ_API_KEY` | None (required) | Must start with `gsk_` |
-| `model` | `openai/gpt-oss-20b` | No whitespace |
+| Provider keys | None (one required) | See [Providers](#providers). No whitespace; `GROQ_API_KEY` must start with `gsk_` |
+| `model` | First provider with a key | `provider/model`, no whitespace |
 | `locale` | `en` | A locale code, for example `ja` or `pt-BR` |
 | `generate` | `1` | Integer from 1 to 5 |
 | `type` | Empty (plain subjects) | Empty or `conventional` |
@@ -54,30 +71,32 @@ lazycommit config set type= scope=
 | `timeout` | `10000` | Integer from 500 to 300000, in milliseconds. Applies per API request |
 | `proxy` | None | An HTTP or HTTPS URL |
 
-Each key except `GROQ_API_KEY` and `proxy` has a matching CLI flag of the same name, for example `--max-length`. See [Usage](/docs/usage#flags). Workflow switches such as `--thorough`, `--yes`, and `--include-generated` are per-invocation options and cannot be saved.
+Each key except the provider keys and `proxy` has a matching CLI flag of the same name, for example `--max-length`. See [Usage](/docs/usage#flags). Workflow switches such as `--thorough`, `--yes`, and `--include-generated` are per-invocation options and cannot be saved.
 
 ### model
 
-The default is `openai/gpt-oss-20b`. To use another model available to your Groq account:
+Without a saved model, lazycommit picks the default model of the first provider that has a key. To choose a model, use `provider/model`:
 
 ```bash
-lazycommit config set model=your-model-id
+lazycommit config set model=anthropic/claude-haiku-4-5
+lazycommit config set model=groq/openai/gpt-oss-20b
 ```
 
-### GROQ_API_KEY
+Groq model names from earlier versions, such as `openai/gpt-oss-20b` or `llama-3.3-70b-versatile`, still work.
+
+### Provider keys
 
 ```bash
+lazycommit config set OPENAI_API_KEY="sk-your_key_here"
 lazycommit config set GROQ_API_KEY="gsk_your_key_here"
 ```
 
-Get a key from the [Groq Console](https://console.groq.com/keys).
-
 ## Environment variables
 
-`GROQ_API_KEY` in the environment overrides the saved key:
+A provider key in the environment overrides the saved key:
 
 ```bash
-export GROQ_API_KEY="gsk_your_key_here"
+export ANTHROPIC_API_KEY="sk-ant-your_key_here"
 ```
 
 ## Proxy
@@ -98,7 +117,7 @@ HTTP and HTTPS proxy environment variables override the saved proxy. They are ch
 ## Precedence
 
 - Generation flags such as `--generate` and `--type` override saved settings.
-- `GROQ_API_KEY` and the proxy variables override the saved key and proxy.
+- Provider key and proxy environment variables override the saved keys and proxy.
 - Saved settings override the defaults in the table above.
 
 The [Git hook](/docs/usage#git-hook) has no flags. It uses saved settings and the same environment overrides.

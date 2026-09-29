@@ -67,7 +67,7 @@ lazycommit --dry-run --generate 3
 ```
 
 - `--preview-diff` prints the diff context locally. It needs no API key and makes no network request.
-- `--dry-run` generates suggestions through Groq without committing. It writes only the subjects to stdout, one per line. Errors go to stderr.
+- `--dry-run` generates suggestions through your provider without committing. It writes only the subjects to stdout, one per line. Errors go to stderr.
 
 Both require staged changes and reject `--all`.
 
@@ -84,6 +84,8 @@ lazycommit --yes
 ### Large changes
 
 In normal mode, lazycommit sends file statistics and the full included patch when it fits within `--max-diff-chars` (default 16,000 characters). Larger patches use bounded samples with omission markers.
+
+When the file list does not fit either, lazycommit groups files into change areas: it splits the heaviest directories until the list fits, then shows the largest files. Code samples are spread across every area, largest files first, so a 1,000-file change still shows where the work happened.
 
 ```bash
 lazycommit --max-diff-chars 24000
@@ -185,7 +187,7 @@ lazycommit hook uninstall
 | `--scope` | Require an explicit conventional scope | Empty, up to 40 characters, requires conventional type |
 | `--context` | Additional intent or constraints | Empty, one line, up to 2,000 characters |
 | `--locale` | Language of the subject | `en`, for example `ja` or `pt-BR` |
-| `--model` | Groq model identifier | `openai/gpt-oss-20b` |
+| `--model` | Model as `provider/model` | First provider with a key; see [Providers](/docs/configuration#providers) |
 | `--max-length` | Maximum subject length | `100`, range 20 to 200 Unicode characters |
 | `--max-diff-chars` | Normal-mode diff context budget | `16000`, range 1000 to 100000 |
 | `--timeout` | Timeout per API request, in milliseconds | `10000`, range 500 to 300000 |

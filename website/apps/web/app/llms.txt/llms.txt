@@ -1,6 +1,6 @@
 # lazycommit
 
-> lazycommit is a TypeScript CLI that uses Git and Groq to generate commit subjects from your staged changes. Choose a suggestion, edit it, regenerate it, or cancel before committing. The npm package is `lazycommitt` (double t). The commands are `lazycommit` and `lzc`.
+> lazycommit is a TypeScript CLI that uses Git and an AI provider of your choice (OpenAI, Gemini, Anthropic, Kimi, DeepSeek, GLM, MiniMax, or Groq) to generate commit subjects from your staged changes. Choose a suggestion, edit it, regenerate it, or cancel before committing. The npm package is `lazycommitt` (double t). The commands are `lazycommit` and `lzc`.
 
 Website: https://lazycommit.vercel.app
 Source: https://github.com/KartikLabhshetwar/lazycommit
@@ -9,8 +9,8 @@ License: Apache-2.0
 ## Requirements
 
 - Git
-- Node.js 20.5 or newer
-- A Groq API key from https://console.groq.com/keys (must start with `gsk_`)
+- Node.js 22.13 or newer
+- An API key for one supported provider (see Providers)
 
 ## Install
 
@@ -25,12 +25,27 @@ brew tap KartikLabhshetwar/lazycommit https://github.com/KartikLabhshetwar/lazyc
 brew install lazycommit
 ```
 
-Set the API key and verify:
+Set an API key and verify:
 
 ```bash
 lazycommit config set GROQ_API_KEY="gsk_your_key_here"
 lazycommit --version
 ```
+
+## Providers
+
+| Provider | Key | Default model |
+| --- | --- | --- |
+| OpenAI | `OPENAI_API_KEY` | `openai/gpt-5.4-mini` |
+| Google Gemini | `GOOGLE_API_KEY` | `google/gemini-3.5-flash-lite` |
+| Anthropic | `ANTHROPIC_API_KEY` | `anthropic/claude-haiku-4-5` |
+| Kimi (Moonshot AI) | `MOONSHOT_API_KEY` | `moonshotai/kimi-k2.6` |
+| DeepSeek | `DEEPSEEK_API_KEY` | `deepseek/deepseek-flash` |
+| GLM (Z.AI) | `ZHIPU_API_KEY` | `zai/glm-5.3-flash` |
+| MiniMax | `MINIMAX_API_KEY` | `minimax/MiniMax-M3` |
+| Groq | `GROQ_API_KEY` | `groq/openai/gpt-oss-20b` |
+
+Without a `model` setting, lazycommit uses the first provider in this table with a key (environment first, then `~/.lazycommit`). Choose a model as `provider/model`, for example `lazycommit config set model=anthropic/claude-haiku-4-5`. Models are routed through Mastra (https://mastra.ai/models); other Mastra providers work with their key set as an environment variable. Groq model names from earlier versions, such as `openai/gpt-oss-20b`, still work.
 
 Upgrade:
 
@@ -86,7 +101,7 @@ lazycommit --preview-diff
 lazycommit --dry-run --generate 3
 ```
 
-`--preview-diff` prints the diff context locally, with no API key and no network request. `--dry-run` generates through Groq and prints only the subjects to stdout, one per line. Errors go to stderr.
+`--preview-diff` prints the diff context locally, with no API key and no network request. `--dry-run` generates through your provider and prints only the subjects to stdout, one per line. Errors go to stderr.
 
 Stage tracked changes or skip prompts:
 
@@ -99,7 +114,7 @@ lazycommit --yes
 
 ## Large changes
 
-Normal mode sends file statistics and the full included patch when it fits within `--max-diff-chars` (default 16000). Larger patches use bounded samples with omission markers.
+Normal mode sends file statistics and the full included patch when it fits within `--max-diff-chars` (default 16000). Larger patches use bounded samples with omission markers. When the file list does not fit either, files are grouped into change areas (the heaviest directories are split until the list fits) followed by the largest files, and code samples are spread across every area, largest files first.
 
 ```bash
 lazycommit --max-diff-chars 24000
@@ -135,7 +150,7 @@ Exclusions affect analysis only. Excluded files that are staged are still commit
 | `--scope` | Explicit conventional scope | Empty, up to 40 characters, requires conventional type |
 | `--context` | Additional intent or constraints | Empty, one line, up to 2000 characters |
 | `--locale` | Language of the subject | `en`, for example `ja` or `pt-BR` |
-| `--model` | Groq model identifier | `openai/gpt-oss-20b` |
+| `--model` | Model as `provider/model` | First provider with a key |
 | `--max-length` | Maximum subject length | `100`, range 20 to 200 Unicode characters |
 | `--max-diff-chars` | Normal-mode diff context budget | `16000`, range 1000 to 100000 |
 | `--timeout` | Timeout per API request, in milliseconds | `10000`, range 500 to 300000 |
@@ -182,8 +197,8 @@ Keys, defaults, and limits:
 
 | Key | Default | Limits |
 | --- | --- | --- |
-| `GROQ_API_KEY` | None (required) | Must start with `gsk_` |
-| `model` | `openai/gpt-oss-20b` | No whitespace |
+| Provider keys | None (one required) | See Providers. No whitespace; `GROQ_API_KEY` must start with `gsk_` |
+| `model` | First provider with a key | `provider/model`, no whitespace |
 | `locale` | `en` | A locale code, for example `ja` or `pt-BR` |
 | `generate` | `1` | Integer from 1 to 5 |
 | `type` | Empty (plain) | Empty or `conventional` |
@@ -196,7 +211,7 @@ Keys, defaults, and limits:
 
 `--thorough`, `--yes`, and other workflow switches are per-invocation options and cannot be saved.
 
-Precedence: generation flags override saved settings. `GROQ_API_KEY` in the environment overrides the saved key. Proxy environment variables override the saved proxy, checked in this order: `https_proxy`, `HTTPS_PROXY`, `http_proxy`, `HTTP_PROXY`.
+Precedence: generation flags override saved settings. Provider keys in the environment override saved keys. Proxy environment variables override the saved proxy, checked in this order: `https_proxy`, `HTTPS_PROXY`, `http_proxy`, `HTTP_PROXY`.
 
 ```bash
 lazycommit config set proxy=http://localhost:8080
@@ -220,9 +235,9 @@ lazycommit hook uninstall
 
 ## How generation works
 
-lazycommit snapshots the Git index and analyzes staged content, including partially staged files. Unstaged edits are not read into the prompt. It sends the selected diff context and your generation instructions to Groq. `--preview-diff` builds the context locally without sending it.
+lazycommit snapshots the Git index and analyzes staged content, including partially staged files. Unstaged edits are not read into the prompt. It sends the selected diff context and your generation instructions to your chosen provider. `--preview-diff` builds the context locally without sending it.
 
-Subjects are checked for single-line output, length, and the requested format and scope. An invalid subject gets one more attempt. Subjects are not shortened by cutting off words. Transient API failures use the Groq SDK retry behavior (up to two retries).
+Subjects are checked for single-line output, length, and the requested format and scope. An invalid subject gets one more attempt. A subject that is only too long is shortened by the model from a short change overview, without resending the diff. Subjects are never cut off. Transient API failures are retried up to twice.
 
 Before a CLI commit, lazycommit checks that the staged tree and HEAD still match the analyzed snapshot. If either changed, it stops so you can rerun. The hook checks for staged-tree changes before writing its result.
 
@@ -237,9 +252,9 @@ Each run creates one commit with one subject line. Review the message for accura
 | Unsupported git argument | Only the accepted Git options work. Use `git commit` directly for `-m`, `--amend`, or paths. |
 | A scope requires conventional type | Use `--type conventional`, or clear it with `lazycommit config set type= scope=`. |
 | Subject is too vague | Add `--context`, try `--thorough`, or stage related changes separately. |
-| No valid subject after retries | Increase `--max-length`, or choose another model available to your Groq account with `--model`. |
+| No valid subject after retries | Increase `--max-length`, or choose another model with `--model`. |
 | Request too large (413) | In normal mode, lower `--max-diff-chars`. In either mode, exclude unnecessary files or stage smaller commits. |
-| Rate limit (429) | Wait before retrying, reduce `--generate`, or leave thorough mode off. |
+| Rate limit (429) | The error says how long to wait when the provider reports it. Wait before retrying, reduce `--generate`, or leave thorough mode off. |
 | Request timed out | Increase `--timeout`, for example `--timeout 30000`, and check connectivity. |
 | Authentication error (401 or 403) | Check your API key and the model permissions for that key. |
 | Staged content changed during review | Rerun lazycommit to analyze the current index. |
@@ -247,9 +262,9 @@ Each run creates one commit with one subject line. Review the message for accura
 
 ## Privacy and cost
 
-Only the selected diff context and generation instructions (format, scope, language, length limit, and `--context`) are sent to Groq. In thorough mode, every included diff batch is sent for summarizing. Lockfile and generated-file patches are omitted unless `--include-generated` is set. Use `--preview-diff` to inspect the context locally.
+Only the selected diff context and generation instructions (format, scope, language, length limit, and `--context`) are sent to your chosen provider. In thorough mode, every included diff batch is sent for summarizing. Lockfile and generated-file patches are omitted unless `--include-generated` is set. Use `--preview-diff` to inspect the context locally.
 
-Usage is billed by Groq under your API key. See https://groq.com/pricing. Request count grows with `--generate`, `--thorough`, and Regenerate.
+Usage is billed by your provider under your API key. Request count grows with `--generate`, `--thorough`, and Regenerate.
 
 ## Docs
 

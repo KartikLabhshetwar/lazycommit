@@ -3,7 +3,7 @@ title: Introduction
 description: What lazycommit is and how it turns staged changes into commit messages.
 ---
 
-lazycommit is a TypeScript CLI that uses Git and Groq to generate commit subjects from your staged changes. Choose a suggestion, edit it, regenerate it, or cancel before anything is committed. Run it as `lazycommit` or the shorter alias `lzc`.
+lazycommit is a TypeScript CLI that uses Git and an AI provider of your choice (OpenAI, Gemini, Anthropic, Kimi, DeepSeek, GLM, MiniMax, or Groq) to generate commit subjects from your staged changes. Choose a suggestion, edit it, regenerate it, or cancel before anything is committed. Run it as `lazycommit` or the shorter alias `lzc`.
 
 ## Quick example
 

@@ -9,13 +9,15 @@ Run `lazycommit --version` and `lazycommit --help` to confirm what your installe
 
 ### The API key is missing or rejected
 
-The key must start with `gsk_`. Set it with:
+Set the key for your provider, for example:
 
 ```bash
-lazycommit config set GROQ_API_KEY="gsk_your_key_here"
+lazycommit config set OPENAI_API_KEY="sk-your_key_here"
 ```
 
-Or set `GROQ_API_KEY` in your environment. The environment value overrides the saved key. Get a key from the [Groq Console](https://console.groq.com/keys).
+Or set it in your environment. The environment value overrides the saved key. Groq keys must start with `gsk_`. See [Providers](/docs/configuration#providers) for every key name.
+
+If you use `--model` or a saved `model`, the key must belong to that model's provider.
 
 ### No staged changes
 
@@ -57,7 +59,7 @@ Add `--context`, try `--thorough`, or stage related changes separately.
 
 ### No valid subject after retries
 
-Increase `--max-length`, or choose another model available to your Groq account with `--model`.
+Increase `--max-length`, or choose another model with `--model`.
 
 ### Request too large (413)
 
@@ -65,7 +67,7 @@ In normal mode, lower `--max-diff-chars`. In either mode, exclude unnecessary fi
 
 ### Rate limit (429)
 
-Wait before retrying, reduce `--generate`, or leave thorough mode off.
+The error says how long to wait when the provider reports it. Wait before retrying, reduce `--generate`, or leave thorough mode off. Short waits are retried automatically.
 
 ### The request timed out
 
@@ -91,7 +93,7 @@ Exclusions affect analysis only. Any excluded file that is staged is still commi
 
 ### How are subjects validated?
 
-Generated subjects are checked for single-line output, length, and the requested format and scope. With `--type conventional`, the subject must be a valid [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/) header, such as `fix(parser): handle empty input`, and the scope must be a single word. Edited messages must keep that format. An invalid or incomplete subject gets one more generation attempt. Subjects are not shortened by cutting off words. Transient API failures are retried by the Groq SDK, up to two retries.
+Generated subjects are checked for single-line output, length, and the requested format and scope. With `--type conventional`, the subject must be a valid [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/) header, such as `fix(parser): handle empty input`, and the scope must be a single word. Edited messages must keep that format. An invalid or incomplete subject gets one more generation attempt. A subject that is only too long is shortened by the model from a short change overview, without resending the diff. Subjects are never cut off. Transient API failures are retried up to twice.
 
 Review the result yourself. Format checks cannot guarantee that an AI summary captures every important detail.
 
@@ -105,15 +107,15 @@ No. `--all` stages modified and deleted files that Git already tracks. Add new f
 
 ### Which model does it use?
 
-The default is `openai/gpt-oss-20b`. Use `--model` or `lazycommit config set model=...` to choose another model available to your Groq account.
+Without a saved model, lazycommit uses the first provider with a key, in this order: OpenAI, Gemini, Anthropic, Kimi, DeepSeek, GLM, MiniMax, Groq. Choose another with `--model provider/model` or `lazycommit config set model=provider/model`. See [Providers](/docs/configuration#providers).
 
 ## Privacy
 
-### What is sent to Groq?
+### What is sent to the provider?
 
 lazycommit snapshots the Git index and analyzes staged content, including partially staged files. Unstaged edits are not read into the prompt.
 
-It sends the selected diff context and your generation instructions (format, scope, language, length limit, and `--context`) to Groq. In thorough mode, every included diff batch is sent for summarizing. Patches for lockfiles and generated files are omitted unless you pass `--include-generated`.
+It sends the selected diff context and your generation instructions (format, scope, language, length limit, and `--context`) to your chosen provider. In thorough mode, every included diff batch is sent for summarizing. Patches for lockfiles and generated files are omitted unless you pass `--include-generated`.
 
 ### Can I see what would be sent?
 
@@ -124,13 +126,13 @@ lazycommit --preview-diff
 lazycommit --preview-diff --thorough
 ```
 
-See Groq's own terms and privacy policy for how it handles data on its side.
+See your provider's terms and privacy policy for how it handles data on its side.
 
 ## Cost
 
 ### How much does it cost?
 
-lazycommit calls the Groq API with your key, so usage is billed by Groq. See [Groq pricing](https://groq.com/pricing).
+lazycommit calls your provider's API with your key, so usage is billed by that provider.
 
 Request count grows with:
 
