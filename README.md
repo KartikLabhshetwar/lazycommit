@@ -49,6 +49,8 @@ brew update && brew upgrade lazycommit
 
 Check your version with `lazycommit --version`. Coming from 1.x: `--split` was removed, and `-s` now means Git's `--signoff`.
 
+Coming from 2.x: version 3 needs Node.js 22.13 or newer and supports [multiple providers](#providers). Your saved `GROQ_API_KEY` keeps working, but a key for a provider earlier in the list (for example `OPENAI_API_KEY` in your shell) now wins. To stay on Groq, run `lazycommit config set model=groq/openai/gpt-oss-20b`.
+
 ## Providers
 
 | Provider | Key | Default model |

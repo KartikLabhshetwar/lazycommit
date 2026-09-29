@@ -1,6 +1,6 @@
 {
   "name": "lazycommitt",
-  "version": "2.0.1",
+  "version": "3.0.0",
   "description": "Writes your git commit messages for you with AI",
   "main": "index.js",
   "scripts": {

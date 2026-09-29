@@ -55,6 +55,8 @@ brew update
 brew upgrade lazycommit
 ```
 
+Coming from 2.x: version 3 needs Node.js 22.13 or newer and supports multiple providers (see Providers). Your saved `GROQ_API_KEY` keeps working, but a key for a provider earlier in the list (for example `OPENAI_API_KEY` in your shell) now wins. To stay on Groq, run `lazycommit config set model=groq/openai/gpt-oss-20b`.
+
 Use the first command for npm installs and the last two for Homebrew installs.
 
 ## Quick start
