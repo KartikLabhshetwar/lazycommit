@@ -11,27 +11,12 @@ importers:
       '@clack/prompts':
         specifier: ^0.11.0
         version: 0.11.0
-      '@types/ini':
-        specifier: ^4.1.1
-        version: 4.1.1
-      '@types/inquirer':
-        specifier: ^9.0.9
-        version: 9.0.9
-      '@types/node':
-        specifier: ^24.5.1
-        version: 24.5.1
-      clean-pkg-json:
-        specifier: ^1.3.0
-        version: 1.3.0
       cleye:
         specifier: ^1.3.4
         version: 1.3.4
       execa:
         specifier: ^9.6.0
         version: 9.6.0
-      fs-fixture:
-        specifier: ^2.8.1
-        version: 2.8.1
       groq-sdk:
         specifier: ^0.32.0
         version: 0.32.0
@@ -44,6 +29,22 @@ importers:
       kolorist:
         specifier: ^1.8.0
         version: 1.8.0
+    devDependencies:
+      '@types/ini':
+        specifier: ^4.1.1
+        version: 4.1.1
+      '@types/inquirer':
+        specifier: ^9.0.9
+        version: 9.0.9
+      '@types/node':
+        specifier: ^24.5.1
+        version: 24.5.1
+      clean-pkg-json:
+        specifier: ^1.3.0
+        version: 1.3.0
+      fs-fixture:
+        specifier: ^2.8.1
+        version: 2.8.1
       manten:
         specifier: ^1.5.0
         version: 1.5.0
