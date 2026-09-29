@@ -1,19 +1,17 @@
 ---
 title: Installation
-description: Install and set up lazycommit.
+description: Install lazycommit, set your Groq API key, and verify the setup.
 ---
 
-Getting lazycommit up and running takes less than a minute. Let's walk through it.
+## Requirements
 
-## Prerequisites
+- Git
+- Node.js 20.5 or newer
+- A [Groq API key](https://console.groq.com/keys) for message generation
 
-- **Node.js** (v18 or higher)
-- **Git** installed and configured
-- A **Groq API key** from [Groq Console](https://console.groq.com/keys)
+The npm package is named `lazycommitt` (double t). The commands are `lazycommit` and `lzc`.
 
-## Quick Install
-
-Install lazycommit globally using your package manager of choice.
+## Install
 
 ### npm
 
@@ -21,58 +19,65 @@ Install lazycommit globally using your package manager of choice.
 npm install -g lazycommitt
 ```
 
-That's it! You can now use `lazycommit` (or the `lzc` alias) from anywhere in your terminal.
-
-### Homebrew (macOS)
-
-Install via Homebrew tap:
+### Homebrew
 
 ```bash
 brew tap KartikLabhshetwar/lazycommit https://github.com/KartikLabhshetwar/lazycommit
 brew install lazycommit
 ```
 
-## API Key Setup
-
-lazycommit needs a Groq API key to generate commit messages. Set the key so lazycommit can use it:
+## Set your API key
 
 ```bash
-lazycommit config set GROQ_API_KEY=<your token>
+lazycommit config set GROQ_API_KEY="gsk_your_key_here"
 ```
 
-This will create a `.lazycommit` file in your home directory.
+The key must start with `gsk_`. It is saved in `~/.lazycommit`, and lazycommit requests owner-only file permissions for that file.
 
-> **Note:** If you haven't already, you'll need to create an account at [Groq Console](https://console.groq.com/keys) and get your API key.
+You can also set `GROQ_API_KEY` in your environment. It overrides the saved key.
 
-## Verify Installation
+```bash
+export GROQ_API_KEY="gsk_your_key_here"
+```
 
-Check that lazycommit is installed correctly:
+`--preview-diff` does not need an API key. See [Configuration](/docs/configuration) for all settings.
+
+## Verify
+
+```bash
+lazycommit --version
+lazycommit --help
+```
+
+Then, inside a repository with staged changes, generate a message without committing:
+
+```bash
+lazycommit --dry-run
+```
+
+## Upgrade
+
+Check your installed version:
 
 ```bash
 lazycommit --version
 ```
 
-You should see the current version number. If you do, you're all set!
-
-## Upgrading
-
-Check the installed version with:
-
-```bash
-lazycommit --version
-```
-
-If it's not the [latest version](https://github.com/KartikLabhshetwar/lazycommit/releases/latest), run:
+If it is not the [latest version on npm](https://www.npmjs.com/package/lazycommitt), upgrade with npm:
 
 ```bash
 npm update -g lazycommitt
 ```
 
-Or if you installed via Homebrew:
+Or, for a Homebrew installation:
 
 ```bash
 brew update
 brew upgrade lazycommit
 ```
 
-**Having trouble?** Check out our [FAQ](/docs/reference/faq) or [open an issue](https://github.com/KartikLabhshetwar/lazycommit/issues) on GitHub.
+## Next steps
+
+- [Usage](/docs/usage): review flow and workflows.
+- [FAQ](/docs/reference/faq): troubleshooting.
+- [Open an issue](https://github.com/KartikLabhshetwar/lazycommit/issues) if something is broken.

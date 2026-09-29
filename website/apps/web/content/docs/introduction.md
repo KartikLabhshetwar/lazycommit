@@ -1,63 +1,43 @@
 ---
 title: Introduction
-description: Learn what lazycommit is and why you should use it.
+description: What lazycommit is and how it turns staged changes into commit messages.
 ---
 
-lazycommit is a CLI tool that writes your git commit messages for you with AI using Groq. Never write a commit message again.
+lazycommit is a TypeScript CLI that uses Git and Groq to generate commit subjects from your staged changes. Choose a suggestion, edit it, regenerate it, or cancel before anything is committed. Run it as `lazycommit` or the shorter alias `lzc`.
 
-## Why lazycommit?
+## Quick example
 
-Writing good commit messages is hard. We've all been there:
+1. Stage the changes you want to commit.
 
-- Staring at a blank commit message box, unsure what to write
-- Defaulting to vague messages like "fix bug" or "update stuff"
-- Struggling to maintain consistency across team commits
-- Spending more time writing commit messages than actually coding
+   ```bash
+   git add src/ README.md
+   ```
 
-lazycommit solves this by doing the thinking for you. It analyzes your actual code changes and generates meaningful, professional commit messages in seconds—so you can focus on what matters: writing great code.
+2. Run lazycommit.
 
-## How It Works
+   ```bash
+   lzc
+   ```
 
-```bash
-# Stage your changes
-git add .
+3. Review the suggested message. Choose **Use as-is**, **Edit**, **Regenerate**, or **Cancel**. Use as-is commits immediately. Edit shows a final confirmation before committing.
 
-# Generate and commit with AI-generated message
-lazycommit
-# or use the short alias
-lzc
-
-# That's it! ✨
-```
+To try generation without creating a commit, run `lazycommit --dry-run`.
 
 ## Features
 
-- **Lightning Fast** - Powered by Groq's ultra-fast inference API
-- **Context-Aware** - Analyzes actual code changes, not just file names
-- **Smart Large Diff Handling** - Automatically handles large commits with compact summaries
-- **Conventional Commits** - Generate conventional commit messages with `--type conventional`
-- **Git Hook Integration** - Works seamlessly with git hooks for automatic message generation
-- **Multiple Recommendations** - Generate multiple commit messages to choose from
-- **Smart Defaults** - Works great out of the box, customizable when you need it
+- **Staged content only:** analyzes what is in the index, including partially staged files. Unstaged edits are not read into the prompt.
+- **Large changes:** sends the full patch when it fits the diff budget, bounded samples otherwise, or batch summaries with `--thorough`.
+- **Control over the result:** choose the model, language, format, scope, length, and extra context.
+- **Multiple suggestions:** request 1 to 5 subjects and pick one.
+- **Preview first:** inspect the diff context locally with `--preview-diff`, or generate without committing with `--dry-run`.
+- **Fits your workflow:** interactive review, an explicit noninteractive mode with `--yes`, or a `prepare-commit-msg` Git hook.
+- **Safe commits:** stops if the staged tree or HEAD changed during generation or review.
 
-## What Makes lazycommit Special
+lazycommit produces one subject line per suggestion and creates one commit. Check that the message is accurate before you commit. An AI summary can miss important details.
 
-lazycommit uses Groq's fast inference API, which provides:
+## Next steps
 
-- **Ultra-fast generation** - Get commit messages in seconds
-- **Cost-effective** - More affordable than traditional AI APIs
-- **Open source models** - Uses leading open-source language models
-- **Reliable** - High uptime and consistent performance
-
-## Large Diff Handling
-
-For large commits that exceed API token limits, lazycommit automatically:
-
-1. Detects large/many-file diffs and switches to enhanced analysis mode
-2. Creates compact summaries using `git diff --numstat` to capture all changes efficiently
-3. Includes context snippets from the most changed files to provide semantic context
-4. Generates a single commit message that accurately reflects all changes without hitting API limits
-
-This ensures you can commit large changes (like new features, refactoring, or initial project setup) without hitting API limits, while maintaining accuracy and high-quality commit messages.
-
-**Ready to upgrade your commits?** Let's get you started with [installation](/docs/installation) and setup.
+- [Installation](/docs/installation): requirements, install, API key, upgrading.
+- [Configuration](/docs/configuration): saved settings, environment variables, proxy.
+- [Usage](/docs/usage): workflows, Git options, the Git hook, all flags.
+- [FAQ](/docs/reference/faq): troubleshooting, privacy, cost.

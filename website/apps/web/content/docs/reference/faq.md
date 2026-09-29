@@ -1,147 +1,160 @@
 ---
 title: FAQ
-description: Common questions and troubleshooting for lazycommit.
+description: Troubleshooting, privacy, cost, and hook versus CLI.
 ---
 
-Quick answers to common questions about lazycommit.
+Run `lazycommit --version` and `lazycommit --help` to confirm what your installed release supports.
 
-## Common Errors
+## Troubleshooting
 
-### "Please set your Groq API key"
+### The API key is missing or rejected
 
-Configure your API key:
-
-```bash
-lazycommit config set GROQ_API_KEY=<your token>
-```
-
-Or set it as an environment variable:
+The key must start with `gsk_`. Set it with:
 
 ```bash
-export GROQ_API_KEY="your-api-key-here"
+lazycommit config set GROQ_API_KEY="gsk_your_key_here"
 ```
 
-Get your key from [Groq Console](https://console.groq.com/keys).
+Or set `GROQ_API_KEY` in your environment. The environment value overrides the saved key. Get a key from the [Groq Console](https://console.groq.com/keys).
 
-### "No staged changes found"
+### No staged changes
 
-Stage your changes first:
+Check what is staged:
 
 ```bash
-git add .
-lazycommit
+git diff --cached
 ```
 
-Or use the `--all` flag to automatically stage all tracked files:
+Stage files with `git add`, or use `--all` to stage tracked changes. Also check your `--exclude` patterns. If every staged file is excluded, there is nothing to analyze.
+
+### Interactive input is unavailable
+
+Without an interactive terminal, choose one of `--yes` (commit the first suggestion), `--dry-run`, or `--preview-diff` explicitly.
+
+### A git argument is unsupported
+
+Only these Git options are accepted: `--signoff` (`-s`), `--no-signoff`, `--no-verify` (`-n`), `--author`, `--date`, `--trailer`, `--cleanup`, `--gpg-sign` (`-S`), `--no-gpg-sign`, `--quiet` (`-q`), and `--verbose` (`-v`). Options such as `-m`, `--amend`, and paths are rejected. Stage the files you want first, or use `git commit` directly.
+
+### A scope requires conventional type
+
+`--scope` and the `scope` setting only work with `--type conventional`. To return to plain subjects, clear the saved scope too:
 
 ```bash
-lazycommit --all
+lazycommit config set type= scope=
 ```
 
-### "Request too large" error (413)
+### Saved settings are ignored
 
-If you get a 413 error, your diff is too large for the API. Try these solutions:
+Keys under a section header such as `[DEFAULT]` in `~/.lazycommit` are not read. Check them with `lazycommit config get type`, then save them again with `lazycommit config set`, which writes them at the top level.
 
-1. **Exclude build artifacts**:
-   ```bash
-   lazycommit --exclude "dist/**" --exclude "node_modules/**" --exclude ".next/**"
-   ```
+### Preview options reject --all
 
-2. **Use a different model**:
-   ```bash
-   lazycommit config set model "llama-3.1-70b-versatile"
-   ```
+`--dry-run` and `--preview-diff` do not stage anything. Stage your changes first, then run them without `--all`.
 
-3. **Commit in smaller batches**:
-   ```bash
-   git add src/  # Stage only source files
-   lazycommit
-   git add docs/ # Then stage documentation
-   lazycommit
-   ```
+### The subject is too vague
 
-### "No commit messages were generated"
+Add `--context`, try `--thorough`, or stage related changes separately.
 
-- Check your API key: `lazycommit config get GROQ_API_KEY`
-- Verify you have staged changes: `git status`
-- Try excluding large files or using a different model
-- Check your internet connection
+### No valid subject after retries
 
-## Quick Questions
+Increase `--max-length`, or choose another model available to your Groq account with `--model`.
 
-### Why does lazycommit use Groq instead of other AI services?
+### Request too large (413)
 
-lazycommit uses Groq because it provides:
+In normal mode, lower `--max-diff-chars`. In either mode, exclude unnecessary files or stage smaller commits.
 
-- **Ultra-fast inference** - Get commit messages in seconds
-- **Cost-effective** - More affordable than traditional AI APIs
-- **Open source models** - Uses leading open-source language models
-- **Reliable** - High uptime and consistent performance
-- **Optimized for commits** - The default model is perfectly sized for conventional commit generation
+### Rate limit (429)
 
-### Does lazycommit send my code to Groq?
+Wait before retrying, reduce `--generate`, or leave thorough mode off.
 
-Only your **git diff** (staged changes) is sent to generate the commit message, not your entire codebase. For large diffs, lazycommit uses compact summaries to minimize data sent.
+### The request timed out
+
+Increase `--timeout`, for example `--timeout 30000`, and check your connectivity and proxy settings.
+
+### Authentication error (401 or 403)
+
+Check your configured API key and the model permissions for that key.
+
+### Staged changes or HEAD changed during review
+
+lazycommit stops if the index or HEAD no longer matches the snapshot it analyzed. Run it again to analyze the current content.
+
+### Unknown option after installation
+
+Check `lazycommit --version` and `lazycommit --help`. Your installed release may be older than the docs. See [Upgrade](/docs/installation#upgrade).
+
+### An excluded file was still committed
+
+Exclusions affect analysis only. Any excluded file that is staged is still committed. Unstage it with `git restore --staged <path>` if you do not want it in the commit.
+
+## How it works
+
+### How are subjects validated?
+
+Generated subjects are checked for single-line output, length, and the requested format and scope. With `--type conventional`, the subject must be a valid [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/) header, such as `fix(parser): handle empty input`, and the scope must be a single word. Edited messages must keep that format. An invalid or incomplete subject gets one more generation attempt. Subjects are not shortened by cutting off words. Transient API failures are retried by the Groq SDK, up to two retries.
+
+Review the result yourself. Format checks cannot guarantee that an AI summary captures every important detail.
+
+### Does lazycommit create more than one commit?
+
+No. Each run produces one commit. `--generate` requests alternative subjects for that one commit.
+
+### Does `--all` add new files?
+
+No. `--all` stages modified and deleted files that Git already tracks. Add new files with `git add`.
+
+### Which model does it use?
+
+The default is `openai/gpt-oss-20b`. Use `--model` or `lazycommit config set model=...` to choose another model available to your Groq account.
+
+## Privacy
+
+### What is sent to Groq?
+
+lazycommit snapshots the Git index and analyzes staged content, including partially staged files. Unstaged edits are not read into the prompt.
+
+It sends the selected diff context and your generation instructions (format, scope, language, length limit, and `--context`) to Groq. In thorough mode, every included diff batch is sent for summarizing. Patches for lockfiles and generated files are omitted unless you pass `--include-generated`.
+
+### Can I see what would be sent?
+
+Yes. `--preview-diff` builds the diff context locally and prints it without a network request. Add `--thorough` to see the batches.
+
+```bash
+lazycommit --preview-diff
+lazycommit --preview-diff --thorough
+```
+
+See Groq's own terms and privacy policy for how it handles data on its side.
+
+## Cost
 
 ### How much does it cost?
 
-lazycommit uses Groq's API, which offers competitive pricing. Check [Groq pricing](https://groq.com/pricing) for current rates. The default model (`openai/gpt-oss-20b`) is optimized for cost-effectiveness.
+lazycommit calls the Groq API with your key, so usage is billed by Groq. See [Groq pricing](https://groq.com/pricing).
 
-### How does lazycommit handle large diffs?
+Request count grows with:
 
-For large commits that exceed API token limits, lazycommit automatically:
+- `--generate`: each suggestion is a separate generation request.
+- `--thorough`: each diff batch is summarized with its own request before generation.
+- Regenerate: each regeneration sends new requests.
 
-1. Detects large/many-file diffs and switches to enhanced analysis mode
-2. Creates compact summaries using `git diff --cached --numstat`
-3. Includes context snippets from the most changed files
-4. Generates a single commit message that accurately reflects all changes
+## Hook and CLI
 
-This ensures you can commit large changes without hitting API limits while maintaining accuracy.
+### What is the difference between the Git hook and the CLI?
 
-### Can I use lazycommit with git hooks?
+| | CLI (`lazycommit`) | Git hook |
+| --- | --- | --- |
+| Run with | `lazycommit` or `lzc` | `git commit` |
+| Review | Interactive menu: use, edit, regenerate, cancel | Your Git editor |
+| Options | All flags | None. Uses saved settings |
+| Analysis | Normal or `--thorough` | Normal only |
+| Explicit message | Not supported. Use `git commit` | `git commit -m` skips generation |
 
-Yes! Install the git hook:
+Both share message validation. The hook does not support custom `core.hooksPath` locations or linked worktrees. Install it with `lazycommit hook install` and remove it with `lazycommit hook uninstall`. See [Usage](/docs/usage#git-hook).
 
-```bash
-lazycommit hook install
-```
+## More help
 
-Then use `git commit` normally. lazycommit will automatically generate a commit message when you don't provide one.
-
-### What's the difference between CLI mode and git hook mode?
-
-- **CLI mode** (`lazycommit`): Interactive workflow where you review, edit, and confirm the message before committing
-- **Git hook mode** (`lazycommit hook install`): Automatic generation that opens in your git editor for review
-
-Both modes use the same enhanced analysis and quality improvements.
-
-### Can I generate conventional commits?
-
-Yes! Use the `--type` flag:
-
-```bash
-lazycommit --type conventional
-```
-
-Or set it in your config:
-
-```bash
-lazycommit config set type=conventional
-```
-
-### Can I exclude files from analysis?
-
-Yes! Use the `--exclude` flag:
-
-```bash
-lazycommit --exclude package-lock.json --exclude dist/
-```
-
-You can use this flag multiple times to exclude multiple files or directories.
-
-## Need More Help?
-
-- [Installation Guide](/docs/installation) - Setup and configuration
-- [Usage Guide](/docs/usage) - Commands and flags
-- [Configuration](/docs/configuration) - Settings and options
-- [GitHub Issues](https://github.com/KartikLabhshetwar/lazycommit/issues) - Report bugs or request features
+- [Installation](/docs/installation)
+- [Usage](/docs/usage)
+- [Configuration](/docs/configuration)
+- [GitHub issues](https://github.com/KartikLabhshetwar/lazycommit/issues)

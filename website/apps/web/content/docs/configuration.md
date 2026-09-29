@@ -1,173 +1,104 @@
 ---
 title: Configuration
-description: Configure lazycommit for your workflow.
+description: Saved settings, limits, environment variables, proxy, and precedence.
 ---
 
-lazycommit is designed to work great out of the box, but it's also highly configurable. Here's how to tailor lazycommit to your workflow.
+## Config file
 
-## Configuration File
+Settings are stored in `~/.lazycommit` in INI format. Manage them with the built-in commands instead of editing the file. lazycommit requests owner-only permissions when it writes the file.
 
-lazycommit stores its configuration at `~/.lazycommit` (INI format). You don't need to edit this file manually; use lazycommit's built-in commands instead.
+## Get and set values
 
-## Reading Configuration Values
-
-To retrieve a configuration option:
+Read one or more values:
 
 ```bash
-lazycommit config get <key>
+lazycommit config get model type max-length generate
 ```
 
-For example, to retrieve the API key:
+Set one or more values in a single command:
 
 ```bash
-lazycommit config get GROQ_API_KEY
+lazycommit config set type=conventional max-length=72 generate=3
+lazycommit config set context="Preserve backward compatibility"
 ```
 
-You can also retrieve multiple configuration options at once:
+Values are validated when you set them. `config get` shows saved values with defaults applied. It does not show environment overrides.
+
+## Clear a value
+
+Assign an empty value to clear an optional setting:
 
 ```bash
-lazycommit config get GROQ_API_KEY generate
+lazycommit config set scope= context= proxy=
 ```
 
-## Setting Configuration Values
-
-To set a configuration option:
+To return to plain subjects, clear any saved scope too. A scope requires conventional type.
 
 ```bash
-lazycommit config set <key>=<value>
+lazycommit config set type= scope=
 ```
 
-For example, to set the API key:
+## Keys
 
-```bash
-lazycommit config set GROQ_API_KEY=<your-api-key>
-```
+| Key | Default | Limits |
+| --- | --- | --- |
+| `GROQ_API_KEY` | None (required) | Must start with `gsk_` |
+| `model` | `openai/gpt-oss-20b` | No whitespace |
+| `locale` | `en` | A locale code, for example `ja` or `pt-BR` |
+| `generate` | `1` | Integer from 1 to 5 |
+| `type` | Empty (plain subjects) | Empty or `conventional` |
+| `scope` | Empty | Up to 40 characters: letters, digits, dots, slashes, underscores, hyphens. Requires conventional type |
+| `context` | Empty | One line, up to 2,000 characters |
+| `max-length` | `100` | Integer from 20 to 200 Unicode characters |
+| `max-diff-chars` | `16000` | Integer from 1000 to 100000. Normal mode only |
+| `timeout` | `10000` | Integer from 500 to 300000, in milliseconds. Applies per API request |
+| `proxy` | None | An HTTP or HTTPS URL |
 
-You can also set multiple configuration options at once:
-
-```bash
-lazycommit config set GROQ_API_KEY=<your-api-key> generate=3 locale=en
-```
-
-## Available Options
-
-### GROQ_API_KEY
-
-**Required**
-
-The Groq API key. You can retrieve it from [Groq Console](https://console.groq.com/keys).
-
-```bash
-lazycommit config set GROQ_API_KEY=<your token>
-```
-
-### locale
-
-**Default:** `en`
-
-The locale to use for the generated commit messages. Consult the list of codes in: https://wikipedia.org/wiki/List_of_ISO_639-1_codes.
-
-```bash
-lazycommit config set locale=ja
-```
-
-### generate
-
-**Default:** `1`
-
-The number of commit messages to generate to pick from.
-
-```bash
-lazycommit config set generate=3
-```
-
-> **Note:** This will use more tokens as it generates more results.
+Each key except `GROQ_API_KEY` and `proxy` has a matching CLI flag of the same name, for example `--max-length`. See [Usage](/docs/usage#flags). Workflow switches such as `--thorough`, `--yes`, and `--include-generated` are per-invocation options and cannot be saved.
 
 ### model
 
-**Default:** `openai/gpt-oss-20b`
-
-The Groq model to use for generating commit messages. Available models include:
-
-- `openai/gpt-oss-20b` (default) - Fast, efficient for conventional commits
-
-For conventional commit generation, the default model provides the best balance of speed and quality.
+The default is `openai/gpt-oss-20b`. To use another model available to your Groq account:
 
 ```bash
-lazycommit config set model=llama-3.1-70b-versatile
+lazycommit config set model=your-model-id
 ```
 
-### type
-
-**Default:** `""` (Empty string)
-
-The type of commit message to generate. Set this to `conventional` to generate commit messages that follow the Conventional Commits specification:
+### GROQ_API_KEY
 
 ```bash
-lazycommit config set type=conventional
+lazycommit config set GROQ_API_KEY="gsk_your_key_here"
 ```
 
-You can clear this option by setting it to an empty string:
+Get a key from the [Groq Console](https://console.groq.com/keys).
+
+## Environment variables
+
+`GROQ_API_KEY` in the environment overrides the saved key:
 
 ```bash
-lazycommit config set type=
+export GROQ_API_KEY="gsk_your_key_here"
 ```
 
-### timeout
+## Proxy
 
-**Default:** `10000` (10 seconds)
-
-The timeout for network requests to the Groq API in milliseconds.
+Save a proxy:
 
 ```bash
-lazycommit config set timeout=20000 # 20s
+lazycommit config set proxy=http://localhost:8080
 ```
 
-### max-length
+HTTP and HTTPS proxy environment variables override the saved proxy. They are checked in this order:
 
-**Default:** `100`
+1. `https_proxy`
+2. `HTTPS_PROXY`
+3. `http_proxy`
+4. `HTTP_PROXY`
 
-The maximum character length of the generated commit message.
+## Precedence
 
-```bash
-lazycommit config set max-length=150
-```
+- Generation flags such as `--generate` and `--type` override saved settings.
+- `GROQ_API_KEY` and the proxy variables override the saved key and proxy.
+- Saved settings override the defaults in the table above.
 
-### proxy
-
-Set a HTTP/HTTPS proxy to use for requests.
-
-```bash
-lazycommit config set proxy=http://proxy.example.com:8080
-```
-
-To clear the proxy option, you can use the command (note the empty value after the equals sign):
-
-```bash
-lazycommit config set proxy=
-```
-
-## Environment Variables
-
-You can also set configuration via environment variables, which will override the config file:
-
-```bash
-export GROQ_API_KEY="your-api-key-here"
-export HTTPS_PROXY="http://proxy.example.com:8080"
-```
-
-Supported environment variables:
-- `GROQ_API_KEY` - Your Groq API key
-- `HTTPS_PROXY` / `https_proxy` / `HTTP_PROXY` / `http_proxy` - Proxy URL
-
-## CLI Flags Override Config
-
-Command-line flags always override configuration file values:
-
-```bash
-# Config file has generate=1, but this will generate 3 messages
-lazycommit --generate 3
-
-# Config file has type=conventional, but this will use default
-lazycommit --type ""
-```
+The [Git hook](/docs/usage#git-hook) has no flags. It uses saved settings and the same environment overrides.

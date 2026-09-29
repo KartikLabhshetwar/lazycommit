@@ -1,169 +1,202 @@
 ---
 title: Usage
-description: Use lazycommit's commands and features.
+description: Review flow, common workflows, Git options, the Git hook, and every flag.
 ---
 
-lazycommit makes generating commit messages effortless. Here's everything you need to know.
+Run `lazycommit --help` to see the options for your installed version.
 
-## Generating Commits
+## Review flow
 
-### Basic Usage
-
-Stage your changes and run lazycommit:
+Stage your changes, then run lazycommit:
 
 ```bash
-git add <files...>
+git add src/ README.md
 lazycommit
 ```
 
-lazycommit analyzes your staged changes and generates a commit message. You'll see a menu to:
-- Use the message as-is
-- Edit the message
-- Cancel
+The review menu offers:
 
-### Stage All Changes
+- **Use as-is:** commits immediately.
+- **Edit:** change the message, then confirm the final message before committing. The message must be one line.
+- **Regenerate:** request new suggestions.
+- **Cancel:** exit without committing.
 
-You can stage all changes in tracked files as you commit:
+With `--generate` greater than 1, you first choose one of the suggestions, then review it.
 
-```bash
-lazycommit --all # or -a
-```
+Before committing, lazycommit checks that the staged tree and HEAD still match the analyzed snapshot. If either changed during generation or review, it stops. Run it again to analyze the current content.
 
-This is equivalent to `git commit --all`.
+Without an interactive terminal, pass `--yes`, `--dry-run`, or `--preview-diff` explicitly.
 
-> 👉 **Tip:** Use the `lzc` alias if `lazycommit` is too long for you.
+## Common workflows
 
-### Generate Multiple Recommendations
+### Conventional commits
 
-Sometimes the recommended commit message isn't the best, so you want it to generate a few to pick from. You can generate multiple commit messages at once:
+Plain subjects are the default. Request a conventional subject and, optionally, an explicit scope:
 
 ```bash
-lazycommit --generate <i> # or -g <i>
+lazycommit --type conventional
+lazycommit --type conventional --scope api --max-length 72
 ```
 
-Where `i` is the number of generated messages (default: 1).
+Example output: `fix(api): reject requests with an empty token`. Subjects follow [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/), and edited messages must keep that format. A scope requires `--type conventional`.
 
-> **Warning:** This uses more tokens, meaning it costs more.
-
-### Conventional Commits
-
-Generate commit messages that follow the [Conventional Commits](https://conventionalcommits.org/) specification:
+### Multiple suggestions
 
 ```bash
-lazycommit --type conventional # or -t conventional
+lazycommit --generate 3
 ```
 
-This will format the commit message according to the Conventional Commits specification, which is useful if your project follows this standard or if you're using tools that rely on this commit format.
+Each requested suggestion uses a separate generation request. Duplicates are removed, and valid suggestions are kept if other requests fail. You may get fewer than requested.
 
-### Exclude Files from Analysis
+### Add context
 
-You can exclude specific files from AI analysis:
+Explain intent that the diff alone may not show:
 
 ```bash
-lazycommit --exclude package-lock.json --exclude dist/
+lazycommit --context "Preserve existing login behavior while replacing session storage"
+lazycommit --locale ja --type conventional
 ```
 
-This is useful for excluding build artifacts, lock files, or other files that shouldn't influence the commit message.
+`--context` takes one line of up to 2,000 characters. `--locale` sets the language of the subject.
 
-## Git Hook Integration
+### Preview and dry run
 
-You can also integrate lazycommit with Git via the `prepare-commit-msg` hook. This lets you use Git like you normally would, and edit the commit message before committing.
+```bash
+lazycommit --preview-diff
+lazycommit --dry-run --generate 3
+```
 
-### Install the Hook
+- `--preview-diff` prints the diff context locally. It needs no API key and makes no network request.
+- `--dry-run` generates suggestions through Groq without committing. It writes only the subjects to stdout, one per line. Errors go to stderr.
 
-In the Git repository you want to install the hook in:
+Both require staged changes and reject `--all`.
+
+### Stage tracked changes or skip prompts
+
+```bash
+lazycommit --all
+lazycommit --yes
+```
+
+- `--all` stages modified and deleted tracked files, then goes to review. It does not add untracked files.
+- `--yes` commits the first valid suggestion without prompts.
+
+### Large changes
+
+In normal mode, lazycommit sends file statistics and the full included patch when it fits within `--max-diff-chars` (default 16,000 characters). Larger patches use bounded samples with omission markers.
+
+```bash
+lazycommit --max-diff-chars 24000
+```
+
+For changes spread across many files or with substantial code edits, use `--thorough`:
+
+```bash
+lazycommit --thorough --type conventional --generate 3
+lazycommit --thorough --dry-run --context "Migrate authentication to the new session API"
+```
+
+Thorough mode:
+
+1. Divides the included diff and file statistics into batches of up to 16,000 characters.
+2. Asks the model to summarize each batch, keeping concrete behavior changes and affected components.
+3. Combines the notes, summarizing them further if needed.
+4. Generates and validates the final suggestions from those notes.
+
+It uses more API requests and takes longer. Regenerate reuses the batch analysis. The input limit is 1.6 million characters. Beyond that, exclude unnecessary files or stage smaller commits. `--max-diff-chars` applies to normal mode only. Character budgets are not exact token counts, and API limits can still apply.
+
+To inspect the batches before using the API:
+
+```bash
+lazycommit --preview-diff --thorough
+```
+
+### Generated files and exclusions
+
+Lockfiles, minified files, and common build directories appear in the statistics, but their patches are omitted by default. Include those patches when they matter:
+
+```bash
+lazycommit --include-generated
+```
+
+Exclude paths from both statistics and code context with repeatable Git pathspecs, relative to the repository root:
+
+```bash
+lazycommit --exclude 'dist/**' --exclude '*.log'
+```
+
+Exclusions affect analysis only. Excluded files that are staged are still committed. Binary changes and renames are identified in the statistics. Binary contents are not interpreted.
+
+## Git options
+
+These Git options are passed to `git commit`:
+
+- `--signoff` (`-s`), `--no-signoff`
+- `--no-verify` (`-n`)
+- `--author`, `--date`, `--trailer`, `--cleanup`
+- `--gpg-sign` (`-S`), `--no-gpg-sign`
+- `--quiet` (`-q`), `--verbose` (`-v`)
+
+```bash
+lazycommit --type conventional --signoff
+lazycommit --author="Your Name <you@example.com>"
+lazycommit --gpg-sign=YOUR_KEY_ID
+```
+
+Any other option is rejected. That includes options that replace the message or change which content is committed, such as `-m`, `--amend`, and path arguments. Use `git commit` directly for those workflows.
+
+## Git hook
+
+Install the `prepare-commit-msg` hook inside a repository:
 
 ```bash
 lazycommit hook install
 ```
 
-### Uninstall the Hook
+Then use Git normally:
 
-In the Git repository you want to uninstall the hook from:
+```bash
+git add src/
+git commit
+```
+
+The hook generates a subject for review in your Git editor. With multiple suggestions, uncomment the one you want. For `git commit --no-edit` with an empty message file, it uses the first suggestion.
+
+An explicit message bypasses generation:
+
+```bash
+git commit -m "Write this message myself"
+```
+
+The hook uses normal-mode analysis, your saved generation settings, and the same message validation as the CLI. Thorough analysis is available only through the CLI. The installer targets `.git/hooks/prepare-commit-msg`. It does not support custom `core.hooksPath` locations or linked-worktree installation.
+
+Remove the hook with:
 
 ```bash
 lazycommit hook uninstall
 ```
 
-### Using the Hook
+## Flags
 
-1. Stage your files and commit:
+| Option | Behavior | Default and limits |
+| --- | --- | --- |
+| `--generate`, `-g` | Number of suggestions to request | `1`, range 1 to 5 |
+| `--type`, `-t` | Plain or conventional subject | Empty (plain) or `conventional` |
+| `--scope` | Require an explicit conventional scope | Empty, up to 40 characters, requires conventional type |
+| `--context` | Additional intent or constraints | Empty, one line, up to 2,000 characters |
+| `--locale` | Language of the subject | `en`, for example `ja` or `pt-BR` |
+| `--model` | Groq model identifier | `openai/gpt-oss-20b` |
+| `--max-length` | Maximum subject length | `100`, range 20 to 200 Unicode characters |
+| `--max-diff-chars` | Normal-mode diff context budget | `16000`, range 1000 to 100000 |
+| `--timeout` | Timeout per API request, in milliseconds | `10000`, range 500 to 300000 |
+| `--thorough` | Analyze every included diff batch before generation | Off |
+| `--include-generated` | Include generated-file and lockfile patches | Off |
+| `--exclude`, `-x` | Exclude a pathspec from analysis | Repeatable |
+| `--all`, `-a` | Stage modifications and deletions in tracked files | Off |
+| `--dry-run` | Generate subjects without committing | Off |
+| `--preview-diff` | Print diff context without calling the API | Off |
+| `--yes`, `-y` | Commit the first suggestion without prompts | Off |
+| `--help`, `-h` | Show usage | None |
+| `--version` | Show the installed version | None |
 
-   ```bash
-   git add <files...>
-   git commit # Only generates a message when it's not passed in
-   ```
-
-   > If you ever want to write your own message instead of generating one, you can simply pass one in: `git commit -m "My message"`
-
-2. lazycommit will generate a high-quality commit message and pass it back to Git. Git will open it with your configured editor for you to review/edit it.
-
-3. Save and close the editor to commit!
-
-## Review, Edit, and Confirm
-
-lazycommit lets you review the generated message, optionally edit it, and then confirm before it is committed:
-
-- You'll see a menu: **Use as-is**, **Edit**, or **Cancel**
-- If you choose **Use as-is**, it commits immediately without additional prompts
-- If you choose **Edit**, you can modify the message; then you'll be asked to confirm the final message before committing
-
-Example:
-
-```bash
-git add .
-lazycommit
-# Review generated commit message:
-#   feat: add lazycommit command
-# → Choose "Use as-is" to commit immediately
-# → Or choose "Edit" to modify, then confirm the final message before commit
-```
-
-## Handling Large Diffs
-
-For large commits with many files, lazycommit automatically stays within API limits and generates relevant commit messages:
-
-- **Smart summarization**: Uses `git diff --cached --numstat` to create compact summaries of all changes
-- **Context snippets**: Includes truncated diff snippets from top changed files for better context
-- **Token-safe processing**: Keeps prompts small while maintaining accuracy for 20+ file changes
-- **Single commit**: Always generates one commit message, no matter how many files are staged
-- **Enhanced analysis**: Uses improved prompts and smart truncation for better commit message quality
-
-## All Available Flags
-
-**Commit generation:**
-
-- **`-g, --generate <number>`** - Number of messages to generate (default: 1)
-- **`-x, --exclude <file>`** - Files to exclude from AI analysis (can be used multiple times)
-- **`-a, --all`** - Automatically stage changes in tracked files for the commit
-- **`-t, --type <type>`** - Type of commit message to generate (e.g., `conventional`)
-- **`-s, --split`** - Create multiple commits by grouping files logically
-
-**Other flags:**
-
-- lazycommit passes down unknown flags to `git commit`, so you can pass in [commit flags](https://git-scm.com/docs/git-commit)
-
-## Quick Examples
-
-```bash
-# Basic commit
-git add .
-lazycommit
-
-# Stage all and commit
-lazycommit --all
-
-# Generate 3 options to choose from
-lazycommit --generate 3
-
-# Generate conventional commit
-lazycommit --type conventional
-
-# Exclude build artifacts
-lazycommit --exclude dist/ --exclude node_modules/
-
-# Use the short alias
-lzc --all
-```
-
-> **Tip:** Need to configure API keys, models, or other settings? Check out [Configuration](/docs/configuration) for setup instructions.
+Generation flags override [saved settings](/docs/configuration). Workflow switches such as `--thorough` and `--yes` apply per invocation only.
