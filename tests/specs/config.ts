@@ -118,6 +118,14 @@ export default testSuite(({ describe }) => {
 			expect(stdout).toBe(groqToken);
 		});
 
+		await test('clearing proxy removes it', async () => {
+			await lazycommit(['config', 'set', 'proxy=http://localhost:8080']);
+			await lazycommit(['config', 'set', 'proxy=']);
+
+			const configFile = await fs.readFile(configPath, 'utf8');
+			expect(configFile).not.toMatch('proxy');
+		});
+
 		await fixture.rm();
 	});
 });

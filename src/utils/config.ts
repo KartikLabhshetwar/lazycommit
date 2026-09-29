@@ -195,7 +195,8 @@ export const setConfigs = async (keyValues: [key: string, value: string][]) => {
 
 		if (typeof value !== 'string') throw new KnownError(`Expected ${key}=<value>`);
 		const parsed = configParsers[key as ConfigKeys](value);
-		config[key as ConfigKeys] = parsed as any;
+		if (parsed === undefined) delete config[key as ConfigKeys];
+		else config[key as ConfigKeys] = parsed as any;
 	}
 
 	await fs.writeFile(configPath, ini.stringify(config), { encoding: 'utf8', mode: 0o600 });
