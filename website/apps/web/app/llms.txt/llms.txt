@@ -45,7 +45,7 @@ lazycommit --version
 | MiniMax | `MINIMAX_API_KEY` | `minimax/MiniMax-M3` |
 | Groq | `GROQ_API_KEY` | `groq/openai/gpt-oss-20b` |
 
-Without a `model` setting, lazycommit uses the first provider in this table with a key (environment first, then `~/.lazycommit`). Choose a model as `provider/model`, for example `lazycommit config set model=anthropic/claude-haiku-4-5`. Models are routed through Mastra (https://mastra.ai/models); other Mastra providers work with their key set as an environment variable. Groq model names from earlier versions, such as `openai/gpt-oss-20b`, still work.
+Without a `model` setting, lazycommit uses the first provider in this table with a key (environment first, then `~/.lazycommit`). Run `lazycommit model` to list the text models of every provider you have a key for and save your pick (without a terminal it prints them as `provider/model`, one per line). Or set a model as `provider/model`, for example `lazycommit config set model=anthropic/claude-haiku-4-5`. Models are routed through Mastra (https://mastra.ai/models); other Mastra providers work with their key set as an environment variable. Groq model names from earlier versions, such as `openai/gpt-oss-20b`, still work.
 
 Upgrade:
 
@@ -56,6 +56,8 @@ brew upgrade lazycommit
 ```
 
 Coming from 2.x: version 3 needs Node.js 22.13 or newer and supports multiple providers (see Providers). Your saved `GROQ_API_KEY` keeps working, but a key for a provider earlier in the list (for example `OPENAI_API_KEY` in your shell) now wins. To stay on Groq, run `lazycommit config set model=groq/openai/gpt-oss-20b`.
+
+New in 3.1: with nothing staged, `lzc` opens a file picker; `lzc <branch>` pushes after committing; `lzc model` picks a model from a list. Scripts are unaffected: `--yes` and runs without a terminal still need staged changes.
 
 Use the first command for npm installs and the last two for Homebrew installs.
 
@@ -113,6 +115,15 @@ lazycommit --yes
 ```
 
 `--all` stages modified and deleted tracked files. It does not add untracked files. `--yes` commits the first valid suggestion without prompts. Without an interactive terminal, pass `--yes`, `--dry-run`, or `--preview-diff`.
+
+Stage and push in one command:
+
+```bash
+lazycommit main           # pick files, review, commit, then git push -u origin main
+lazycommit feature/login  # same for a feature branch
+```
+
+If nothing is staged, an interactive run lists every changed and untracked file, all selected; Enter stages them, space toggles one, `a` toggles all. Cancelling, or any run that doesn't commit, unstages them again. A branch argument pushes with `git push -u origin <branch>` after a successful commit; it must be the current branch and `origin` must exist, both checked before any API call. A failed push keeps the commit. `--yes`, previews, and non-interactive runs never stage anything, and previews reject a branch. Branches named `config`, `hook`, or `model` can't be pushed this way.
 
 ## Large changes
 
@@ -249,12 +260,13 @@ Each run creates one commit with one subject line. Review the message for accura
 
 | Problem | What to try |
 | --- | --- |
-| No staged changes | Check `git diff --cached`. Stage files with `git add`, or use `--all` for tracked changes. Also check exclusions. |
+| No staged changes | Run lazycommit in a terminal to pick files, or stage with `git add` or `--all`. Also check exclusions. |
 | Interactive input is unavailable | Pass `--yes`, `--dry-run`, or `--preview-diff`. |
 | Unsupported git argument | Only the accepted Git options work. Use `git commit` directly for `-m`, `--amend`, or paths. |
 | A scope requires conventional type | Use `--type conventional`, or clear it with `lazycommit config set type= scope=`. |
 | Subject is too vague | Add `--context`, try `--thorough`, or stage related changes separately. |
-| No valid subject after retries | Increase `--max-length`, or choose another model with `--model`. |
+| No valid subject after retries | Increase `--max-length`, or choose another model with `lazycommit model` or `--model`. |
+| Unknown model | Run `lazycommit model` to pick one your keys can use. |
 | Request too large (413) | In normal mode, lower `--max-diff-chars`. In either mode, exclude unnecessary files or stage smaller commits. |
 | Rate limit (429) | The error says how long to wait when the provider reports it. Wait before retrying, reduce `--generate`, or leave thorough mode off. |
 | Request timed out | Increase `--timeout`, for example `--timeout 30000`, and check connectivity. |

@@ -81,6 +81,30 @@ lazycommit --yes
 - `--all` stages modified and deleted tracked files, then goes to review. It does not add untracked files.
 - `--yes` commits the first valid suggestion without prompts.
 
+### Stage and push in one command
+
+If nothing is staged, lazycommit lists every changed and untracked file (ignored files never appear), all selected. Press Enter to stage them all, or toggle files with space (`a` toggles all). If you cancel, or the commit doesn't happen, the files are unstaged again.
+
+Add a branch name to push after committing:
+
+```bash
+lazycommit main           # pick files, review, commit, then git push -u origin main
+lazycommit feature/login  # same for a feature branch; -u sets its upstream on the first push
+```
+
+- The branch must be the one you're on, and an `origin` remote must exist. Both are checked before any API call.
+- The push runs only after a successful commit. If it fails, the commit is kept and git's error is shown.
+- `--yes`, previews, and runs without a terminal never stage anything; they still need staged changes. Previews can't take a branch.
+- A branch named `config`, `hook`, or `model` can't be pushed this way, because those names are commands.
+
+### Pick a model
+
+```bash
+lazycommit model
+```
+
+Lists the text models of every provider you have a key for and saves your pick as the `model` setting. Use `--model provider/model` to override it for one run. See [Providers](/docs/configuration#providers).
+
 ### Large changes
 
 In normal mode, lazycommit sends file statistics and the full included patch when it fits within `--max-diff-chars` (default 16,000 characters). Larger patches use bounded samples with omission markers.

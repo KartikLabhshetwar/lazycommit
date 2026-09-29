@@ -7,7 +7,7 @@ lazycommit is a TypeScript CLI that uses Git and an AI provider of your choice (
 
 ## Quick example
 
-1. Stage the changes you want to commit.
+1. Stage the changes you want to commit. You can also skip this step and pick files when lazycommit asks.
 
    ```bash
    git add src/ README.md
@@ -21,13 +21,15 @@ lazycommit is a TypeScript CLI that uses Git and an AI provider of your choice (
 
 3. Review the suggested message. Choose **Use as-is**, **Edit**, **Regenerate**, or **Cancel**. Use as-is commits immediately. Edit shows a final confirmation before committing.
 
-To try generation without creating a commit, run `lazycommit --dry-run`.
+To try generation without creating a commit, run `lazycommit --dry-run`. To commit and push in one step, add the branch name: `lzc main`.
 
 ## Features
 
 - **Staged content only:** analyzes what is in the index, including partially staged files. Unstaged edits are not read into the prompt.
 - **Large changes:** sends the full patch when it fits the diff budget, bounded samples otherwise, or batch summaries with `--thorough`.
 - **Control over the result:** choose the model, language, format, scope, length, and extra context.
+- **Model picker:** `lzc model` lists the models your API keys can use and saves your pick.
+- **Stage and push in one command:** with nothing staged, pick files from a list. `lzc main` pushes after committing.
 - **Multiple suggestions:** request 1 to 5 subjects and pick one.
 - **Preview first:** inspect the diff context locally with `--preview-diff`, or generate without committing with `--dry-run`.
 - **Fits your workflow:** interactive review, an explicit noninteractive mode with `--yes`, or a `prepare-commit-msg` Git hook.

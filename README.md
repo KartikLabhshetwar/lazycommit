@@ -16,7 +16,8 @@
 Lazycommit is a TypeScript CLI that uses Git and an AI provider of your choice to generate commit subjects from your staged changes. Choose a suggestion, edit it, regenerate it, or cancel before committing. Use `lazycommit` or its shorter alias, `lzc`.
 
 - **Analyze large changes:** use bounded code samples or opt into deeper analysis with `--thorough`.
-- **Choose your provider:** OpenAI, Gemini, Anthropic, Kimi, DeepSeek, GLM, MiniMax, or Groq.
+- **Choose your provider:** OpenAI, Gemini, Anthropic, Kimi, DeepSeek, GLM, MiniMax, or Groq, then pick a model from a list with `lzc model`.
+- **Stage and push in one command:** pick files when nothing is staged, and `lzc main` pushes after committing.
 - **Control the result:** choose the model, language, format, scope, length, and additional context.
 - **Preview first:** inspect the diff context locally or generate messages without committing.
 - **Fit your workflow:** use interactive review, an explicit noninteractive mode, or a Git hook.
@@ -51,6 +52,8 @@ Check your version with `lazycommit --version`. Coming from 1.x: `--split` was r
 
 Coming from 2.x: version 3 needs Node.js 22.13 or newer and supports [multiple providers](#providers). Your saved `GROQ_API_KEY` keeps working, but a key for a provider earlier in the list (for example `OPENAI_API_KEY` in your shell) now wins. To stay on Groq, run `lazycommit config set model=groq/openai/gpt-oss-20b`.
 
+New in 3.1: with nothing staged, `lzc` opens a file picker; `lzc <branch>` pushes after committing; `lzc model` picks a model from a list. Scripts are unaffected: `--yes` and runs without a terminal still need staged changes.
+
 ## Providers
 
 | Provider | Key | Default model |
@@ -64,7 +67,15 @@ Coming from 2.x: version 3 needs Node.js 22.13 or newer and supports [multiple p
 | MiniMax | `MINIMAX_API_KEY` | `minimax/MiniMax-M3` |
 | Groq | `GROQ_API_KEY` | `groq/openai/gpt-oss-20b` |
 
-Without a `model` setting, lazycommit uses the first provider in this table that has a key. Pick one explicitly with `provider/model`:
+Without a `model` setting, lazycommit uses the first provider in this table that has a key. To browse the models your keys can use and pick one, run:
+
+```sh
+lzc model
+```
+
+It lists the text models of every provider you have a key for (environment or `~/.lazycommit`), marks the current one, and saves your pick as the `model` setting. With several providers, you choose the provider first. Without a terminal, it prints the models as `provider/model`, one per line. The list comes from [Mastra's model registry](https://mastra.ai/models), so a provider's newest models may be missing; set those with `provider/model` directly.
+
+Or set one explicitly with `provider/model`:
 
 ```sh
 lazycommit config set ANTHROPIC_API_KEY="sk-ant-your_key_here"
@@ -84,6 +95,22 @@ lzc
 ```
 
 Choose **Use as-is**, **Edit**, **Regenerate**, or **Cancel**. Nothing is committed until you choose, and only staged changes are committed.
+
+### Stage and push in one command
+
+If nothing is staged, `lzc` lists every changed and untracked file (ignored files never appear), all selected. Press Enter to stage them all, or toggle files with space (`a` toggles all). If you cancel, or the commit doesn't happen, the files are unstaged again.
+
+Add a branch name to push after committing:
+
+```sh
+lzc main                # pick files → review → commit → git push -u origin main
+lzc feature/login       # same for a feature branch; -u sets its upstream on the first push
+```
+
+- The branch must be the one you're on, and an `origin` remote must exist. Both are checked before any API call.
+- The push runs only after a successful commit. If it fails, the commit is kept and git's error is shown.
+- `--yes`, previews, and runs without a terminal never stage anything; they still need staged changes. Previews can't take a branch.
+- A branch named `config`, `hook`, or `model` can't be pushed this way, because those names are commands.
 
 ```sh
 lzc --type conventional               # fix(api): reject empty tokens
@@ -172,6 +199,7 @@ Settings are stored in `~/.lazycommit` (INI, owner-only permissions). CLI flags 
 lazycommit config set type=conventional max-length=72 generate=3
 lazycommit config get model type max-length
 lazycommit config set scope= context= proxy=   # clear values
+lazycommit model                               # pick the model from a list
 ```
 
 Keys: the provider keys from [Providers](#providers), `proxy`, `model`, `locale`, `generate`, `type`, `scope`, `context`, `timeout`, `max-length`, and `max-diff-chars`. Defaults and limits match the options table. Switches such as `--thorough` and `--yes` apply per run only.
@@ -211,9 +239,10 @@ Always review the result. AI summaries can miss important details.
 
 | Problem | What to try |
 | --- | --- |
-| No staged changes | Check `git diff --cached`, stage with `git add` or `--all`, and check your exclusions. |
+| No staged changes | Run `lzc` in a terminal to pick files, or stage with `git add` or `--all`. Also check your exclusions. |
 | Subject is too vague | Add `--context`, try `--thorough`, or commit related changes separately. |
-| No valid subject after retries | Raise `--max-length` or try another model with `--model`. |
+| No valid subject after retries | Raise `--max-length` or try another model with `lzc model` or `--model`. |
+| Unknown model | Run `lzc model` to pick one your keys can use. |
 | Request too large (413) | Lower `--max-diff-chars`, exclude files, or stage smaller commits. |
 | Rate limit (429) | The error says how long to wait. Wait, lower `--generate`, or skip `--thorough`. |
 | Request timed out | Raise `--timeout` (e.g. `30000`) and check your connection. |
@@ -238,10 +267,11 @@ Tests run offline against temporary Git repositories and a mock API. Live Groq t
 
 | File | Responsibility |
 | --- | --- |
-| [`src/utils/git.ts`](src/utils/git.ts) | Index snapshots, statistics, samples, and analysis batches |
-| [`src/utils/ai.ts`](src/utils/ai.ts) | Provider selection, batch summaries, generation, validation, and API errors |
+| [`src/utils/git.ts`](src/utils/git.ts) | Index snapshots, statistics, samples, analysis batches, and staging |
+| [`src/utils/ai.ts`](src/utils/ai.ts) | Provider selection, model listing, batch summaries, generation, validation, and API errors |
 | [`src/utils/prompt.ts`](src/utils/prompt.ts) | Message format and content instructions |
-| [`src/commands/lazycommit.ts`](src/commands/lazycommit.ts) | Review, editing, regeneration, previews, and committing |
+| [`src/commands/lazycommit.ts`](src/commands/lazycommit.ts) | File picking, review, editing, regeneration, previews, committing, and pushing |
+| [`src/commands/model.ts`](src/commands/model.ts) | Interactive model picker |
 | [`src/utils/config.ts`](src/utils/config.ts) | Persistent settings and validation |
 | [`tests/regressions.ts`](tests/regressions.ts) | Offline regression checks |
 

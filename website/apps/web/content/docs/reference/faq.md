@@ -27,7 +27,7 @@ Check what is staged:
 git diff --cached
 ```
 
-Stage files with `git add`, or use `--all` to stage tracked changes. Also check your `--exclude` patterns. If every staged file is excluded, there is nothing to analyze.
+In a terminal, lazycommit shows a file picker when nothing is staged. Otherwise stage files with `git add`, or use `--all` to stage tracked changes. Also check your `--exclude` patterns. If every staged file is excluded, there is nothing to analyze.
 
 ### Interactive input is unavailable
 
@@ -59,7 +59,7 @@ Add `--context`, try `--thorough`, or stage related changes separately.
 
 ### No valid subject after retries
 
-Increase `--max-length`, or choose another model with `--model`.
+Increase `--max-length`, or choose another model with `lazycommit model` or `--model`.
 
 ### Request too large (413)
 
@@ -103,11 +103,11 @@ No. Each run produces one commit. `--generate` requests alternative subjects for
 
 ### Does `--all` add new files?
 
-No. `--all` stages modified and deleted files that Git already tracks. Add new files with `git add`.
+No. `--all` stages modified and deleted files that Git already tracks. Add new files with `git add`, or run lazycommit with nothing staged and pick them in the file picker.
 
 ### Which model does it use?
 
-Without a saved model, lazycommit uses the first provider with a key, in this order: OpenAI, Gemini, Anthropic, Kimi, DeepSeek, GLM, MiniMax, Groq. Choose another with `--model provider/model` or `lazycommit config set model=provider/model`. See [Providers](/docs/configuration#providers).
+Without a saved model, lazycommit uses the first provider with a key, in this order: OpenAI, Gemini, Anthropic, Kimi, DeepSeek, GLM, MiniMax, Groq. Run `lazycommit model` to pick one from the models your keys can use, or choose one with `--model provider/model` or `lazycommit config set model=provider/model`. See [Providers](/docs/configuration#providers).
 
 ## Privacy
 

@@ -78,6 +78,8 @@ brew upgrade lazycommit
 
 Coming from 2.x: version 3 needs Node.js 22.13 or newer and supports [multiple providers](/docs/configuration#providers). Your saved `GROQ_API_KEY` keeps working, but a key for a provider earlier in the list (for example `OPENAI_API_KEY` in your shell) now wins. To stay on Groq, run `lazycommit config set model=groq/openai/gpt-oss-20b`.
 
+New in 3.1: with nothing staged, `lzc` opens a file picker; `lzc <branch>` pushes after committing; `lzc model` picks a model from a list. Scripts are unaffected: `--yes` and runs without a terminal still need staged changes. See [Usage](/docs/usage#stage-and-push-in-one-command).
+
 ## Next steps
 
 - [Usage](/docs/usage): review flow and workflows.

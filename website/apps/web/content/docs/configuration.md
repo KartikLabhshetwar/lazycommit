@@ -18,6 +18,14 @@ description: Providers, saved settings, limits, environment variables, proxy, an
 
 Without a `model` setting, lazycommit uses the first provider in this table that has a key, checking the environment first and then `~/.lazycommit`.
 
+To browse the models your keys can use and pick one, run:
+
+```bash
+lazycommit model
+```
+
+It lists the text models of every provider you have a key for (environment or `~/.lazycommit`), marks the current one, and saves your pick as the `model` setting. With several providers, you choose the provider first. Without a terminal, it prints the models as `provider/model`, one per line. The list comes from Mastra's model registry, so a provider's newest models may be missing; set those with `provider/model` directly.
+
 Models are routed through [Mastra](https://mastra.ai/models), so other Mastra providers also work. Set their key as an environment variable, for example `OPENROUTER_API_KEY`, and pass the model as `provider/model`.
 
 ## Config file
@@ -75,7 +83,7 @@ Each key except the provider keys and `proxy` has a matching CLI flag of the sam
 
 ### model
 
-Without a saved model, lazycommit picks the default model of the first provider that has a key. To choose a model, use `provider/model`:
+Without a saved model, lazycommit picks the default model of the first provider that has a key. To choose from a list, run `lazycommit model` (see [Providers](#providers)). To set a model directly, use `provider/model`:
 
 ```bash
 lazycommit config set model=anthropic/claude-haiku-4-5
