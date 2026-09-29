@@ -30,6 +30,49 @@ const createLazycommit = (fixture: FsFixture) => {
 		});
 };
 
+const terminalDriver = String.raw`
+import fcntl, json, os, pty, re, select, signal, struct, sys, termios
+steps = json.loads(sys.argv[1])
+pid, fd = pty.fork()
+if pid == 0:
+    fcntl.ioctl(0, termios.TIOCSWINSZ, struct.pack('HHHH', 40, 120, 0, 0))
+    os.execv(sys.argv[2], sys.argv[2:])
+output = b''
+def read():
+    global output
+    if not select.select([fd], [], [], 30)[0]:
+        os.kill(pid, signal.SIGKILL)
+        sys.exit('Timed out. Output:\n' + output.decode(errors='replace'))
+    try:
+        data = os.read(fd, 65536)
+    except OSError:
+        data = b''
+    output += data
+    return data
+seen = 0
+for pattern, keys in steps:
+    while not re.search(pattern, output[seen:].decode(errors='replace')):
+        if not read():
+            sys.exit('Exited before ' + pattern + '. Output:\n' + output.decode(errors='replace'))
+    seen = len(output)
+    os.write(fd, keys.encode())
+while read():
+    pass
+sys.stdout.write(output.decode(errors='replace'))
+sys.exit(os.waitstatus_to_exitcode(os.waitpid(pid, 0)[1]))
+`;
+
+export const hasPython = async () => !(await execa('python3', ['--version'], { reject: false })).failed;
+
+/** Runs the CLI in a pseudo-terminal, typing each step's keys once its pattern is printed. */
+export const runInTerminal = (cwd: string, args: string[], steps: Array<[string, string]>, env: Record<string, string>) =>
+	execa('python3', ['-c', terminalDriver, JSON.stringify(steps), process.execPath, lazycommitPath, ...args], {
+		cwd,
+		reject: false,
+		extendEnv: false,
+		env: { PATH: process.env.PATH, HOME: cwd, USERPROFILE: cwd, TERM: 'xterm-256color', ...env },
+	});
+
 export const createGit = async (cwd: string) => {
 	const git = (command: string, args?: string[], options?: Options) =>
 		execa('git', [command, ...(args || [])], {

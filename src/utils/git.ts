@@ -10,6 +10,28 @@ export const assertGitRepo = async () => {
 
 export const getIndexTree = async () => (await execa('git', ['write-tree'])).stdout;
 
+export const getCurrentBranch = async () => (await execa('git', ['branch', '--show-current'])).stdout;
+
+const statusLabels: Record<string, string> = { M: 'modified', T: 'modified', D: 'deleted', A: 'new', '?': 'new' };
+
+/** Lists unstaged and untracked files as repository-root paths. */
+export const getUnstagedFiles = async () => {
+	const entries = (await execa('git', ['status', '--porcelain', '-z', '--untracked-files=all'])).stdout.split('\0');
+	const files: Array<{ path: string; status: string }> = [];
+	for (let i = 0; i < entries.length; i++) {
+		const entry = entries[i];
+		if (/^[RC]/.test(entry)) i++;
+		if (entry.length > 3 && entry[1] !== ' ') files.push({ path: entry.slice(3), status: statusLabels[entry[1]] ?? 'changed' });
+	}
+	return files;
+};
+
+/** Stages exactly the given repository-root paths, including deletions. */
+export const stageFiles = (root: string, files: string[]) => execa(
+	'git', ['--literal-pathspecs', 'add', '--all', '--pathspec-from-file=-', '--pathspec-file-nul'],
+	{ cwd: root, input: files.join('\0') },
+);
+
 // Keep generated files in the summary, but spend the code-context budget on source.
 const generatedFiles = [
 	'package-lock.json', 'pnpm-lock.yaml', 'yarn.lock', 'bun.lock', 'bun.lockb',

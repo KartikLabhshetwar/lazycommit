@@ -6,6 +6,7 @@ import lazycommit from './commands/lazycommit.js';
 import prepareCommitMessageHook from './commands/prepare-commit-msg-hook.js';
 import configCommand from './commands/config.js';
 import hookCommand, { isCalledFromGitHook } from './commands/hook.js';
+import modelCommand from './commands/model.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -63,10 +64,12 @@ cli(
 			includeGenerated: { type: Boolean, description: 'Include generated and lockfile patches in analysis', default: false },
 		},
 
-		commands: [configCommand, hookCommand],
+		commands: [configCommand, hookCommand, modelCommand],
 
 		help: {
 			description,
+			usage: ['lazycommit [flags...] [branch]', 'lazycommit <command>'],
+			examples: ['lzc                 Commit staged changes, or pick files to stage when nothing is staged', 'lzc main            Commit, then git push -u origin main', 'lzc model           List the models your API keys can use and pick one'],
 		},
 
 		ignoreArgv: (type) => type === 'unknown-flag' || type === 'argument',

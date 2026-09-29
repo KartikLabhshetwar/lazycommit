@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
-import { getStagedDiff } from '../src/utils/git.js';
+import { execa } from 'execa';
+import { getStagedDiff, getUnstagedFiles, stageFiles } from '../src/utils/git.js';
 import { normalizeMessage } from '../src/utils/ai.js';
 import { generatePrompt } from '../src/utils/prompt.js';
-import { createFixture, createGit } from './utils.js';
+import { createFixture, createGit, hasPython, runInTerminal } from './utils.js';
 
 assert.equal(normalizeMessage('"fix(api)!: handle empty input"', 100, 'conventional', 'api'), 'fix(api)!: handle empty input');
 assert.equal(normalizeMessage('fix: ' + 'x'.repeat(100), 100, 'conventional'), undefined);
@@ -191,7 +192,134 @@ try {
 	assert.equal(wide.overview.split('\n').length, 13);
 	assert.match(wide.overview, /\nOther paths: 500 files, \+500 -0$/);
 	assert.match(wide.overview, /^Staged files: 1001\n"zz-core\/engine\.ts"/);
-	console.log('Offline regression checks passed (diffs, options, API validation, commits, hooks, thorough analysis).');
+
+	const repo = await createFixture({
+		'.lazycommit': 'GROQ_API_KEY=gsk_test\n', '.gitignore': '.lazycommit\n', 'a.txt': 'a\n', 'gone.txt': 'gone\n',
+	});
+	const remote = await createFixture();
+	try {
+		const repoGit = await createGit(repo.fixture.path);
+		await repoGit('add', ['.']);
+		await repoGit('commit', ['-m', 'Initial commit']);
+		await repo.fixture.writeFile('a.txt', 'changed\n');
+		await repo.fixture.rm('gone.txt');
+		await repo.fixture.writeFile('[ab].txt', 'literal name\n');
+		await repo.fixture.mkdir('docs');
+		await repo.fixture.writeFile('docs/new file.md', 'new\n');
+		const status = async () => (await repoGit('status', ['--porcelain', '--untracked-files=all'])).stdout;
+		const head = async () => (await repoGit('rev-parse', ['HEAD'])).stdout;
+
+		process.chdir(`${repo.fixture.path}/docs`);
+		assert.deepEqual(await getUnstagedFiles(), [
+			{ path: 'a.txt', status: 'modified' }, { path: 'gone.txt', status: 'deleted' },
+			{ path: '[ab].txt', status: 'new' }, { path: 'docs/new file.md', status: 'new' },
+		]);
+		await stageFiles(repo.fixture.path, ['[ab].txt', 'gone.txt']);
+		assert.equal((await repoGit('diff', ['--cached', '--name-status'])).stdout, 'A\t[ab].txt\nD\tgone.txt');
+		await repoGit('reset', ['-q']);
+		process.chdir(originalCwd);
+
+		const unstaged = await status();
+		requests = [];
+		const scripted = await repo.lazycommit(['--yes'], { ...options, reject: false });
+		assert.equal(scripted.exitCode, 1);
+		assert.match(String(scripted.stdout), /No staged changes found/);
+		assert.equal(await status(), unstaged);
+		for (const [args, error] of [
+			[['master', '--yes'], /No origin remote found/],
+			[['main', '--yes'], /You are on master, not main/],
+			[['--dry-run', 'master'], /Preview options cannot be combined with a branch/],
+			[['master', 'extra', '--yes'], /Unsupported git argument: extra/],
+		] as const) {
+			const result = await repo.lazycommit([...args], { ...options, reject: false });
+			assert.equal(result.exitCode, 1);
+			assert.match(`${result.stdout}${result.stderr}`, error);
+		}
+		assert.equal(requests.length, 0);
+
+		await execa('git', ['init', '--bare', '-q', remote.fixture.path]);
+		await repoGit('remote', ['add', 'origin', remote.fixture.path]);
+		const remoteHead = async () => (await execa('git', ['rev-parse', 'master'], { cwd: remote.fixture.path })).stdout;
+		await repoGit('add', ['a.txt']);
+		await repo.lazycommit(['master', '--yes', '-s'], options);
+		assert.equal((await repoGit('log', ['-1', '--format=%s'])).stdout, 'Add enabled flag');
+		assert.match(String((await repoGit('log', ['-1', '--format=%B'])).stdout), /Signed-off-by:/);
+		assert.equal(await remoteHead(), await head());
+		assert.equal((await repoGit('rev-parse', ['--abbrev-ref', 'master@{upstream}'])).stdout, 'origin/master');
+
+		await repoGit('add', ['gone.txt']);
+		await repoGit('remote', ['set-url', 'origin', `${remote.fixture.path}-missing`]);
+		const beforeFailedPush = await head();
+		const failedPush = await repo.lazycommit(['master', '--yes'], { ...options, reject: false });
+		assert.equal(failedPush.exitCode, 1);
+		assert.match(String(failedPush.stdout), /Push to origin\/master failed\. Your commit is kept/);
+		assert.notEqual(await head(), beforeFailedPush);
+		assert.equal((await repoGit('show', ['--name-status', '--format=', 'HEAD'])).stdout, 'D\tgone.txt');
+		await repoGit('remote', ['set-url', 'origin', remote.fixture.path]);
+
+		if (await hasPython()) {
+			const untracked = await status();
+			const beforePicker = await head();
+			for (const steps of [[['Select files', '\x03']], [['Select files', '\r'], ['Review commit message', '\x03']]] as Array<Array<[string, string]>>) {
+				const cancelled = await runInTerminal(repo.fixture.path, [], steps, options.env);
+				assert.equal(cancelled.exitCode, 0, `${cancelled.stdout}${cancelled.stderr}`);
+				assert.match(String(cancelled.stdout), /Commit cancelled/);
+				assert.equal(await status(), untracked);
+				assert.equal(await head(), beforePicker);
+			}
+
+			const picked = await runInTerminal(repo.fixture.path, ['master'], [['Select files', ' \r'], ['Review commit message', '\r']], options.env);
+			assert.equal(picked.exitCode, 0, `${picked.stdout}${picked.stderr}`);
+			assert.match(String(picked.stdout), /Successfully committed and pushed to origin\/master/);
+			assert.equal((await repoGit('show', ['--name-only', '--format=', 'HEAD'])).stdout, 'docs/new file.md');
+			assert.equal(await status(), '?? [ab].txt');
+			assert.equal(await remoteHead(), await head());
+		} else {
+			console.warn('⚠️  python3 is necessary for the interactive picker checks. Skipping...');
+		}
+	} finally {
+		process.chdir(originalCwd);
+		await repo.fixture.rm();
+		await remote.fixture.rm();
+	}
+
+	const home = await createFixture({ '.lazycommit': 'GROQ_API_KEY=gsk_test\n' });
+	try {
+		const listed = String((await home.lazycommit(['model'])).stdout).split('\n');
+		assert(listed.includes('groq/openai/gpt-oss-20b'));
+		assert(listed.every(id => id.startsWith('groq/')));
+		assert(!listed.some(id => /whisper|guard/.test(id)));
+		const both = String((await home.lazycommit(['model'], { env: { OPENAI_API_KEY: 'sk-test' } })).stdout).split('\n');
+		assert(both.includes('openai/gpt-5.4-mini') && both.includes('groq/openai/gpt-oss-20b'));
+		const keyless = await home.lazycommit(['model'], { env: { HOME: `${home.fixture.path}/none` }, reject: false });
+		assert.equal(keyless.exitCode, 1);
+		assert.match(String(keyless.stderr), /Please set an API key/);
+
+		if (await hasPython()) {
+			const savedConfig = () => home.fixture.readFile('.lazycommit', 'utf8');
+			const cancelled = await runInTerminal(home.fixture.path, ['model'], [['Choose a model from Groq', '\x03']], {});
+			assert.equal(cancelled.exitCode, 0, `${cancelled.stdout}${cancelled.stderr}`);
+			assert.match(String(cancelled.stdout), /Model unchanged/);
+			assert.equal(await savedConfig(), 'GROQ_API_KEY=gsk_test\n');
+
+			const next = listed[listed.indexOf('groq/openai/gpt-oss-20b') + 1];
+			const picked = await runInTerminal(home.fixture.path, ['model'], [['Choose a model from Groq', '\x1b[B\r']], {});
+			assert.equal(picked.exitCode, 0, `${picked.stdout}${picked.stderr}`);
+			assert(String(picked.stdout).includes(`Model set to ${next}`));
+			assert.equal(await savedConfig(), `GROQ_API_KEY=gsk_test\nmodel=${next}\n`);
+
+			await home.lazycommit(['config', 'set', 'model=openai/gpt-5.4-mini']);
+			const kept = await runInTerminal(home.fixture.path, ['model'], [['Choose a provider', '\r'], ['Choose a model from OpenAI', '\r']], { OPENAI_API_KEY: 'sk-test' });
+			assert.equal(kept.exitCode, 0, `${kept.stdout}${kept.stderr}`);
+			assert.match(String(kept.stdout), /current model: openai\/gpt-5\.4-mini/);
+			assert.match(String(kept.stdout), /Model set to openai\/gpt-5\.4-mini/);
+		} else {
+			console.warn('⚠️  python3 is necessary for the interactive model picker checks. Skipping...');
+		}
+	} finally {
+		await home.fixture.rm();
+	}
+	console.log('Offline regression checks passed (diffs, options, API validation, commits, hooks, thorough analysis, staging picker, push, model picker).');
 } finally {
 	process.chdir(originalCwd);
 	server.close();

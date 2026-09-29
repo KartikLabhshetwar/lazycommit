@@ -1,6 +1,6 @@
 import { execa } from 'execa';
-import { intro, outro, spinner, select, confirm, isCancel, text } from '@clack/prompts';
-import { assertGitRepo, getStagedDiff, getDetectedMessage, getIndexTree, hasStagedChanges } from '../utils/git.js';
+import { intro, outro, spinner, select, multiselect, confirm, isCancel, text, log } from '@clack/prompts';
+import { assertGitRepo, getStagedDiff, getDetectedMessage, getIndexTree, hasStagedChanges, getCurrentBranch, getUnstagedFiles, stageFiles } from '../utils/git.js';
 import { getConfig, type RawConfig } from '../utils/config.js';
 import { generateMessages, analyzeDiff, conventionalPattern, resolveModel } from '../utils/ai.js';
 import { KnownError, handleCliError } from '../utils/error.js';
@@ -17,33 +17,64 @@ type Options = {
 	gitArgs: string[];
 };
 
-export const validateGitArgs = (args: string[]) => {
-	// Only forward metadata options: content/path options invalidate the analyzed snapshot.
+/** Splits the optional branch to push from the git commit options, which must not change the analyzed snapshot. */
+export const parseGitArgs = (args: string[]) => {
+	let branch: string | undefined;
+	const gitArgs: string[] = [];
 	for (let i = 0; i < args.length; i++) {
 		const arg = args[i];
+		if (!branch && !arg.startsWith('-')) { branch = arg; continue; }
+		gitArgs.push(arg);
 		if (/^(--signoff|--no-signoff|-s|--no-verify|-n|--gpg-sign|--no-gpg-sign|-S|--quiet|-q|--verbose|-v)$/.test(arg)) continue;
 		if (/^(--author|--date|--cleanup|--trailer)$/.test(arg)) {
 			if (!args[++i] || args[i].startsWith('-')) throw new KnownError(`Missing value for ${arg}`);
+			gitArgs.push(args[i]);
 			continue;
 		}
 		if (/^(--author|--date|--cleanup|--trailer|--gpg-sign)=.+$/.test(arg) || /^-S.+$/.test(arg)) continue;
 		throw new KnownError(`Unsupported git argument: ${arg}. Stage the intended files first. Use git commit directly for amend, message, or path options.`);
 	}
+	return { branch, gitArgs };
 };
 
 export default async (options: Options) => {
+	let restoreTree: string | undefined;
+	let stagedTree: string | undefined;
 	try {
-		await assertGitRepo();
-		validateGitArgs(options.gitArgs);
-		if ((options.dryRun || options.previewDiff) && options.all) throw new KnownError('Preview options cannot be combined with --all; stage changes first.');
+		const root = await assertGitRepo();
+		const { branch, gitArgs } = parseGitArgs(options.gitArgs);
+		const preview = options.dryRun || options.previewDiff;
+		if (preview && options.all) throw new KnownError('Preview options cannot be combined with --all; stage changes first.');
+		if (preview && branch) throw new KnownError(`Preview options cannot be combined with a branch; previews never commit or push ${branch}.`);
+		if (branch) {
+			const current = await getCurrentBranch();
+			if (branch !== current) throw new KnownError(current ? `You are on ${current}, not ${branch}. Check out ${branch} first, or run lzc ${current}.` : `HEAD is detached. Check out ${branch} before pushing it.`);
+			if ((await execa('git', ['remote', 'get-url', 'origin'], { reject: false })).failed) throw new KnownError('No origin remote found. Add one with `git remote add origin <url>`.');
+		}
 		const noChanges = 'No staged changes found. Stage your changes manually, or automatically stage all changes with the `--all` flag.';
-		if (!options.all && !await hasStagedChanges(options.exclude)) throw new KnownError(noChanges);
+		const pick = !options.all && !await hasStagedChanges(options.exclude);
+		if (pick && (preview || options.yes || !process.stdin.isTTY)) throw new KnownError(noChanges);
 		const config = await getConfig({
 			proxy: process.env.https_proxy || process.env.HTTPS_PROXY || process.env.http_proxy || process.env.HTTP_PROXY,
 			...options.config,
 		});
 		if (!options.previewDiff) resolveModel(config);
 		if (options.all) await execa('git', ['add', '--update']);
+		if (pick) {
+			const files = await getUnstagedFiles();
+			if (!files.length) throw new KnownError(noChanges);
+			intro('lazycommit');
+			const selected = await multiselect({
+				message: 'Nothing staged. Select files to commit (space toggles, a toggles all)',
+				options: files.map(file => ({ value: file.path, label: file.path, hint: file.status })),
+				initialValues: files.map(file => file.path),
+				required: true,
+			});
+			if (isCancel(selected)) { outro('Commit cancelled'); return; }
+			restoreTree = await getIndexTree();
+			await stageFiles(root, selected);
+			stagedTree = await getIndexTree();
+		}
 		const snapshot = await getStagedDiff(options.exclude, config['max-diff-chars'], options.includeGenerated, options.thorough);
 		if (!snapshot) throw new KnownError(noChanges);
 		if (options.previewDiff) {
@@ -51,7 +82,8 @@ export default async (options: Options) => {
 			return;
 		}
 		if (!options.dryRun && !options.yes && !process.stdin.isTTY) throw new KnownError('Interactive input is unavailable. Use --dry-run to preview or --yes to commit the first suggestion.');
-		if (!options.dryRun) intro(`lazycommit · ${getDetectedMessage(snapshot.files)}`);
+		if (pick) log.step(getDetectedMessage(snapshot.files));
+		else if (!options.dryRun) intro(`lazycommit · ${getDetectedMessage(snapshot.files)}`);
 		let analysis = options.thorough ? undefined : snapshot.diff;
 		let message = '';
 		for (;;) {
@@ -100,13 +132,20 @@ export default async (options: Options) => {
 		if (await getIndexTree() !== snapshot.tree || (currentHead.failed ? '' : currentHead.stdout) !== snapshot.head) {
 			throw new KnownError('Staged changes or HEAD changed during review. Run lazycommit again to analyze the current changes.');
 		}
-		await execa('git', ['commit', '-m', message, ...options.gitArgs]);
-		outro('Successfully committed!');
+		await execa('git', ['commit', '-m', message, ...gitArgs]);
+		restoreTree = undefined;
+		if (!branch) { outro('Successfully committed!'); return; }
+		log.success('Successfully committed!');
+		const push = await execa('git', ['push', '-u', 'origin', branch], { stdio: 'inherit', reject: false });
+		if (push.failed) throw new KnownError(`Push to origin/${branch} failed. Your commit is kept: fix the problem above, then run \`git push -u origin ${branch}\`.`);
+		outro(`Successfully committed and pushed to origin/${branch}!`);
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
 		if (options.dryRun || options.previewDiff) console.error(message);
 		else outro(message);
 		handleCliError(error);
 		process.exitCode = 1;
+	} finally {
+		if (restoreTree && await getIndexTree().catch(() => undefined) === stagedTree) await execa('git', ['read-tree', restoreTree], { reject: false });
 	}
 };

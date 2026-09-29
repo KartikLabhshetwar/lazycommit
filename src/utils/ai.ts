@@ -38,22 +38,33 @@ export const normalizeMessage = (content: string, maxLength: number, type: Commi
 };
 
 const keyNames = (provider: string) => [registry[provider]?.apiKeyEnvVar ?? []].flat();
+const configKeys = Object.keys(defaultModels).map(provider => keyNames(provider)[0]);
+const noKeyError = () => new KnownError(`Please set an API key, for example \`lazycommit config set GROQ_API_KEY=<your key>\`. Supported keys: ${configKeys.join(', ')}`);
+const findKey = (config: ValidConfig, provider: string) => keyNames(provider)
+	.map(name => process.env[name] || (config as Record<string, unknown>)[name])
+	.find(Boolean) as string | undefined;
+const nonTextModels = /whisper|orpheus|tts|image|embedding|veo-|lyria|guard|live|realtime|computer-use|deep-research|translate/i;
+
+/** Lists the text models of every provider with an API key, as provider/model ids. */
+export const listModels = (config: ValidConfig) => {
+	const providers = Object.entries(registry).flatMap(([id, provider]) => provider && findKey(config, id)
+		? [{ id, name: provider.name, models: provider.models.filter(model => !nonTextModels.test(model)).map(model => `${id}/${model}`) }]
+		: []);
+	if (!providers.length) throw noKeyError();
+	return providers;
+};
 
 /** Resolves provider/model and its API key, defaulting to the first provider with a key. */
 export const resolveModel = (config: ValidConfig): Model => {
-	const findKey = (provider: string) => keyNames(provider)
-		.map(name => process.env[name] || (config as Record<string, unknown>)[name])
-		.find(Boolean) as string | undefined;
-	let id = config.model || Object.entries(defaultModels).map(([provider, model]) => findKey(provider) && `${provider}/${model}`).find(Boolean);
-	const configKeys = Object.keys(defaultModels).map(provider => keyNames(provider)[0]);
-	if (!id) throw new KnownError(`Please set an API key, for example \`lazycommit config set GROQ_API_KEY=<your key>\`. Supported keys: ${configKeys.join(', ')}`);
+	let id = config.model || Object.entries(defaultModels).map(([provider, model]) => findKey(config, provider) && `${provider}/${model}`).find(Boolean);
+	if (!id) throw noKeyError();
 	const [prefix] = id.split('/');
 	if (!registry[prefix]?.models.includes(id.slice(prefix.length + 1)) && registry.groq?.models.includes(id)) id = `groq/${id}`;
 	const name = id.split('/')[0];
 	const provider = registry[name];
-	if (!provider || !id.includes('/')) throw new KnownError(`Unknown model "${id}". Use provider/model, for example groq/openai/gpt-oss-20b.`);
+	if (!provider || !id.includes('/')) throw new KnownError(`Unknown model "${id}". Run \`lazycommit model\` to pick one, or use provider/model, for example groq/openai/gpt-oss-20b.`);
 	const [key] = keyNames(name);
-	const apiKey = findKey(name);
+	const apiKey = findKey(config, name);
 	if (!apiKey) {
 		throw new KnownError(configKeys.includes(key)
 			? `Please set your ${provider.name} API key via \`lazycommit config set ${key}=<your key>\``
