@@ -3,8 +3,8 @@ require "language/node"
 class Lazycommit < Formula
   desc "Writes your git commit messages for you with AI"
   homepage "https://github.com/KartikLabhshetwar/lazycommit"
-  url "https://registry.npmjs.org/lazycommitt/-/lazycommitt-3.0.0.tgz"
-  sha256 "139b975be691e580c71ea49f621bccff52e2896194051afa433ccf33ce224e4f"
+  url "https://registry.npmjs.org/lazycommitt/-/lazycommitt-3.1.0.tgz"
+  sha256 "9dbf9ea4df6441674a2af762cc626e4f993b8ef753e33718a1ae6e59c0217ae9"
   license "Apache-2.0"
 
   depends_on "node"
