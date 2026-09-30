@@ -277,6 +277,19 @@ try {
 		} else {
 			console.warn('⚠️  python3 is necessary for the interactive picker checks. Skipping...');
 		}
+
+		await repoGit('commit', ['--allow-empty', '-m', 'Local only']);
+		const unpushed = await head();
+		requests = [];
+		const withUntracked = await repo.lazycommit(['master', '--yes'], { ...options, reject: false });
+		assert.equal(withUntracked.exitCode, 1);
+		assert.match(String(withUntracked.stdout), /No staged changes found/);
+		assert.notEqual(await remoteHead(), unpushed);
+		await repoGit('clean', ['-fdq']);
+		const pushOnly = await repo.lazycommit(['master'], options);
+		assert.match(String(pushOnly.stdout), /Nothing to commit\. origin\/master is up to date/);
+		assert.equal(await remoteHead(), unpushed);
+		assert.equal(requests.length, 0);
 	} finally {
 		process.chdir(originalCwd);
 		await repo.fixture.rm();

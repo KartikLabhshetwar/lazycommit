@@ -108,7 +108,7 @@ lzc feature/login       # same for a feature branch; -u sets its upstream on the
 ```
 
 - The branch must be the one you're on, and an `origin` remote must exist. Both are checked before any API call.
-- The push runs only after a successful commit. If it fails, the commit is kept and git's error is shown.
+- The push runs after a successful commit. With nothing to commit (a clean working tree), it just pushes, so `lzc` then `lzc main` works too. If the push fails, the commit is kept and git's error is shown.
 - `--yes`, previews, and runs without a terminal never stage anything; they still need staged changes. Previews can't take a branch.
 - A branch named `config`, `hook`, or `model` can't be pushed this way, because those names are commands.
 

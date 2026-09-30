@@ -37,6 +37,12 @@ export const parseGitArgs = (args: string[]) => {
 	return { branch, gitArgs };
 };
 
+/** Pushes the branch to origin and sets its upstream. */
+const pushBranch = async (branch: string) => {
+	const push = await execa('git', ['push', '-u', 'origin', branch], { stdio: 'inherit', reject: false });
+	if (push.failed) throw new KnownError(`Push to origin/${branch} failed. Your commit is kept: fix the problem above, then run \`git push -u origin ${branch}\`.`);
+};
+
 export default async (options: Options) => {
 	let restoreTree: string | undefined;
 	let stagedTree: string | undefined;
@@ -50,6 +56,12 @@ export default async (options: Options) => {
 			const current = await getCurrentBranch();
 			if (branch !== current) throw new KnownError(current ? `You are on ${current}, not ${branch}. Check out ${branch} first, or run lzc ${current}.` : `HEAD is detached. Check out ${branch} before pushing it.`);
 			if ((await execa('git', ['remote', 'get-url', 'origin'], { reject: false })).failed) throw new KnownError('No origin remote found. Add one with `git remote add origin <url>`.');
+			if (!await hasStagedChanges() && !(await getUnstagedFiles()).length) {
+				intro('lazycommit · nothing to commit');
+				await pushBranch(branch);
+				outro(`Nothing to commit. origin/${branch} is up to date.`);
+				return;
+			}
 		}
 		const noChanges = 'No staged changes found. Stage your changes manually, or automatically stage all changes with the `--all` flag.';
 		const pick = !options.all && !await hasStagedChanges(options.exclude);
@@ -136,8 +148,7 @@ export default async (options: Options) => {
 		restoreTree = undefined;
 		if (!branch) { outro('Successfully committed!'); return; }
 		log.success('Successfully committed!');
-		const push = await execa('git', ['push', '-u', 'origin', branch], { stdio: 'inherit', reject: false });
-		if (push.failed) throw new KnownError(`Push to origin/${branch} failed. Your commit is kept: fix the problem above, then run \`git push -u origin ${branch}\`.`);
+		await pushBranch(branch);
 		outro(`Successfully committed and pushed to origin/${branch}!`);
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);

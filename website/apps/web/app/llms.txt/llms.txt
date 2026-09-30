@@ -123,7 +123,7 @@ lazycommit main           # pick files, review, commit, then git push -u origin 
 lazycommit feature/login  # same for a feature branch
 ```
 
-If nothing is staged, an interactive run lists every changed and untracked file, all selected; Enter stages them, space toggles one, `a` toggles all. Cancelling, or any run that doesn't commit, unstages them again. A branch argument pushes with `git push -u origin <branch>` after a successful commit; it must be the current branch and `origin` must exist, both checked before any API call. A failed push keeps the commit. `--yes`, previews, and non-interactive runs never stage anything, and previews reject a branch. Branches named `config`, `hook`, or `model` can't be pushed this way.
+If nothing is staged, an interactive run lists every changed and untracked file, all selected; Enter stages them, space toggles one, `a` toggles all. Cancelling, or any run that doesn't commit, unstages them again. A branch argument pushes with `git push -u origin <branch>` after a successful commit, or right away when the working tree is clean and there is nothing to commit; it must be the current branch and `origin` must exist, both checked before any API call. A failed push keeps the commit. `--yes`, previews, and non-interactive runs never stage anything, and previews reject a branch. Branches named `config`, `hook`, or `model` can't be pushed this way.
 
 ## Large changes
 
